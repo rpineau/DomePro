@@ -8,6 +8,11 @@
 #define __RIGEL_DOME__
 #include <math.h>
 #include <string.h>
+#include <string>
+#include <vector>
+#include <sstream>
+#include <iostream>
+
 #include "../../licensedinterfaces/sberrorx.h"
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"

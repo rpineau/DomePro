@@ -159,6 +159,8 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
 
     } while (*pszBufPtr++ != ';' && ulTotalBytesRead < nBufferLen );
 
+    if(ulTotalBytesRead && *(pszBufPtr-1) == ';')
+        *(pszBufPtr-1) = 0; //remove the ; to zero terminate the string
 
     return nErr;
 }
@@ -199,6 +201,7 @@ int CDomePro::getDomeAz(double &dDomeAz)
 {
     int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
+    unsigned long nTmp;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -206,12 +209,15 @@ int CDomePro::getDomeAz(double &dDomeAz)
     if(m_bCalibrating)
         return nErr;
 
-    nErr = domeCommand("ANGLE;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGap;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
-    // convert Az string to double
-    dDomeAz = atof(szResp);
+    // convert Az hex string to long
+    nTmp = strtol(szResp, NULL, 16);
+
+    dDomeAz = nTmp/(m_nNbStepPerRev * 360.0);
+
     m_dCurrentAzPosition = dDomeAz;
 
     return nErr;
@@ -245,6 +251,7 @@ int CDomePro::getDomeHomeAz(double &dAz)
 {
     int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
+    unsigned long nTmp;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -252,34 +259,23 @@ int CDomePro::getDomeHomeAz(double &dAz)
     if(m_bCalibrating)
         return nErr;
 
-    nErr = domeCommand("HOME\r", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGha;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
-    // convert Az string to double
-    dAz = atof(szResp);
+    // convert Az hex string to long
+    nTmp = strtol(szResp, NULL, 16);
+
+    dAz = nTmp/(m_nNbStepPerRev * 360.0);
+
     m_dHomeAz = dAz;
     return nErr;
 }
 
 int CDomePro::getDomeParkAz(double &dAz)
 {
-    int nErr = PD_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    if(!m_bIsConnected)
-        return NOT_CONNECTED;
-
-    if(m_bCalibrating)
-        return nErr;
-
-    nErr = domeCommand("PARK\r", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    // convert Az string to double
-    dAz = atof(szResp);
-    m_dParkAz = dAz;
+    int nErr;
+    nErr = getDomeAz(dAz);
     return nErr;
 }
 
@@ -556,7 +552,7 @@ int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
 {
     int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-    double dVersion;
+    unsigned long nFirmwareVersion;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -564,12 +560,12 @@ int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("VER\r", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGfv;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
-    dVersion = atof(szResp);
-    snprintf(pszVersion, nStrMaxLen, "%.2f",dVersion);
+    nFirmwareVersion = strtol(szResp, NULL, 16);
+    snprintf(pszVersion, nStrMaxLen, "%lu", nFirmwareVersion);
     return nErr;
 }
 
