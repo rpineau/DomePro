@@ -18,13 +18,13 @@ CDomePro::CDomePro()
 {
     // set some sane values
     m_bDebugLog = true;
-    
+
     m_pSerx = NULL;
     m_bIsConnected = false;
 
     m_nNbStepPerRev = 0;
     m_dShutterBatteryVolts = 0.0;
-    
+
     m_dHomeAz = 180;
     m_dParkAz = 180;
 
@@ -35,7 +35,7 @@ CDomePro::CDomePro()
 
     m_bHasShutter = false;
     m_bShutterOpened = false;
-    
+
     m_bParked = true;
     m_bHomed = false;
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
@@ -53,7 +53,7 @@ int CDomePro::Connect(const char *pszPort)
     int nState;
 
     // 9600 8N1
-    if(m_pSerx->open(pszPort, 115200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1") == 0)
+    if(m_pSerx->open(pszPort, 19200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1") == 0)
         m_bIsConnected = true;
     else
         m_bIsConnected = false;
@@ -107,12 +107,12 @@ void CDomePro::Disconnect()
 }
 
 
-int CDomePro::readResponse(char *pszRespBuffer, int nBufferLen)
+int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     unsigned long ulBytesRead = 0;
     unsigned long ulTotalBytesRead = 0;
-    char *pszBufPtr;
+    unsigned char *pszBufPtr;
 
     memset(pszRespBuffer, 0, (size_t) nBufferLen);
     pszBufPtr = pszRespBuffer;
@@ -131,13 +131,13 @@ int CDomePro::readResponse(char *pszRespBuffer, int nBufferLen)
             snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] respBuffer = %s\n",pszRespBuffer);
             m_pLogger->out(m_szLogBuffer);
         }
-        
+
         if (ulBytesRead !=1) {// timeout
             if (m_bDebugLog) {
                 snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile Timeout.\n");
                 m_pLogger->out(m_szLogBuffer);
             }
-            nErr = RD_BAD_CMD_RESPONSE;
+            nErr = PD_BAD_CMD_RESPONSE;
             break;
         }
         ulTotalBytesRead += ulBytesRead;
@@ -145,10 +145,20 @@ int CDomePro::readResponse(char *pszRespBuffer, int nBufferLen)
             snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] nBytesRead = %lu\n",ulBytesRead);
             m_pLogger->out(m_szLogBuffer);
         }
-    } while (*pszBufPtr++ != 0x0D && ulTotalBytesRead < nBufferLen );
+        // check for  errors or single ACK
+        if(*pszBufPtr == ATCL_NACK) {
+            nErr = PD_BAD_CMD_RESPONSE;
+            break;
+        }
 
-    if(ulTotalBytesRead)
-        *(pszBufPtr-1) = 0; //remove the \r
+        if(*pszBufPtr == ATCL_ACK) {
+            nErr = PD_OK;
+        	break;
+        }
+
+
+    } while (*pszBufPtr++ != ';' && ulTotalBytesRead < nBufferLen );
+
 
     return nErr;
 }
@@ -156,9 +166,9 @@ int CDomePro::readResponse(char *pszRespBuffer, int nBufferLen)
 
 int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen)
 {
-    int nErr = RD_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    unsigned long  ulBytesWrite;
+    int nErr = PD_OK;
+    unsigned char szResp[SERIAL_BUFFER_SIZE];
+    unsigned long ulBytesWrite;
 
     m_pSerx->purgeTxRx();
     if (m_bDebugLog) {
@@ -179,7 +189,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         return nErr;
 
     if(pszResult)
-        strncpy(pszResult, &szResp[1], nResultMaxLen);
+        strncpy(pszResult, (const char *)szResp, nResultMaxLen);
 
     return nErr;
 
@@ -187,7 +197,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
 
 int CDomePro::getDomeAz(double &dDomeAz)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -196,10 +206,10 @@ int CDomePro::getDomeAz(double &dDomeAz)
     if(m_bCalibrating)
         return nErr;
 
-    nErr = domeCommand("ANGLE\r", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("ANGLE;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
-    
+
     // convert Az string to double
     dDomeAz = atof(szResp);
     m_dCurrentAzPosition = dDomeAz;
@@ -209,7 +219,7 @@ int CDomePro::getDomeAz(double &dDomeAz)
 
 int CDomePro::getDomeEl(double &dDomeEl)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     int nShutterState;
 
     if(!m_bIsConnected)
@@ -226,14 +236,14 @@ int CDomePro::getDomeEl(double &dDomeEl)
     }
 
     m_dCurrentElPosition = dDomeEl;
-    
+
     return nErr;
 }
 
 
 int CDomePro::getDomeHomeAz(double &dAz)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -254,7 +264,7 @@ int CDomePro::getDomeHomeAz(double &dAz)
 
 int CDomePro::getDomeParkAz(double &dAz)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -276,7 +286,7 @@ int CDomePro::getDomeParkAz(double &dAz)
 
 int CDomePro::getShutterState(int &nState)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     int nShutterState;
 
@@ -309,7 +319,7 @@ int CDomePro::getShutterState(int &nState)
             break;
         default:
             m_bShutterOpened = false;
-            
+
     }
 
     nState = atoi(szResp);
@@ -320,7 +330,7 @@ int CDomePro::getShutterState(int &nState)
 
 int CDomePro::getDomeStepPerRev(int &nStepPerRev)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -337,16 +347,16 @@ int CDomePro::getDomeStepPerRev(int &nStepPerRev)
 
 int CDomePro::getBatteryLevels(double &dShutterVolts, int &nPercent)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     int rc = 0;
     char szResp[SERIAL_BUFFER_SIZE];
-    
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     if(m_bCalibrating)
         return nErr;
-    
+
     nErr = domeCommand("BAT\r", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
@@ -372,7 +382,7 @@ void CDomePro::setDebugLog(bool bEnable)
 int CDomePro::isDomeMoving(bool &bIsMoving)
 {
     int tmp;
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -393,12 +403,12 @@ int CDomePro::isDomeMoving(bool &bIsMoving)
 int CDomePro::isDomeAtHome(bool &bAtHome)
 {
     int tmp;
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char resp[SERIAL_BUFFER_SIZE];
-    
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
-    
+
     nErr = domeCommand("HOME ?\r", resp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return false;
@@ -407,14 +417,14 @@ int CDomePro::isDomeAtHome(bool &bAtHome)
     tmp = atoi(resp);
     if(tmp)
         bAtHome = true;
-    
+
     return nErr;
-  
+
 }
 
 int CDomePro::syncDome(double dAz, double dEl)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szBuf[SERIAL_BUFFER_SIZE];
     char szResp[SERIAL_BUFFER_SIZE];
 
@@ -427,17 +437,17 @@ int CDomePro::syncDome(double dAz, double dEl)
     if(nErr)
         return nErr;
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     return nErr;
 }
 
 int CDomePro::parkDome()
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -451,10 +461,10 @@ int CDomePro::parkDome()
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     return nErr;
 }
@@ -470,7 +480,7 @@ int CDomePro::unparkDome()
 int CDomePro::gotoAzimuth(double dNewAz)
 {
 
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szBuf[SERIAL_BUFFER_SIZE];
     char szResp[SERIAL_BUFFER_SIZE];
 
@@ -483,10 +493,10 @@ int CDomePro::gotoAzimuth(double dNewAz)
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
 
     m_dGotoAz = dNewAz;
@@ -496,7 +506,7 @@ int CDomePro::gotoAzimuth(double dNewAz)
 
 int CDomePro::openShutter()
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -510,17 +520,17 @@ int CDomePro::openShutter()
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     return nErr;
 }
 
 int CDomePro::closeShutter()
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -534,17 +544,17 @@ int CDomePro::closeShutter()
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     return nErr;
 }
 
 int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     double dVersion;
 
@@ -565,7 +575,7 @@ int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
 
 int CDomePro::getModel(char *pszModel, int nStrMaxLen)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -584,7 +594,7 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
 
 int CDomePro::goHome()
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -598,17 +608,17 @@ int CDomePro::goHome()
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     return nErr;
 }
 
 int CDomePro::calibrate()
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char resp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
@@ -622,15 +632,15 @@ int CDomePro::calibrate()
         return nErr;
 
     if(strncmp(resp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
         return nErr;
     }
 
     m_bCalibrating = true;
-    
+
     return nErr;
 }
 
@@ -832,7 +842,7 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
         bComplete = false;
         return nErr;
     }
-    
+
     nErr = getDomeAz(dDomeAz);
 
     if (ceil(m_dHomeAz) != ceil(dDomeAz)) {
@@ -881,7 +891,7 @@ double CDomePro::getHomeAz()
 
 int CDomePro::setHomeAz(double dAz)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szBuf[SERIAL_BUFFER_SIZE];
     char szResp[SERIAL_BUFFER_SIZE];
 
@@ -894,10 +904,10 @@ int CDomePro::setHomeAz(double dAz)
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
     m_dHomeAz = dAz;
     return nErr;
@@ -915,7 +925,7 @@ double CDomePro::getParkAz()
 
 int CDomePro::setParkAz(double dAz)
 {
-    int nErr = RD_OK;
+    int nErr = PD_OK;
     char szBuf[SERIAL_BUFFER_SIZE];
     char szResp[SERIAL_BUFFER_SIZE];
 
@@ -928,10 +938,10 @@ int CDomePro::setParkAz(double dAz)
         return nErr;
 
     if(strncmp(szResp,"A",1) == 0) {
-        nErr = RD_OK;
+        nErr = PD_OK;
     }
     else {
-        nErr = RD_BAD_CMD_RESPONSE;
+        nErr = PD_BAD_CMD_RESPONSE;
     }
 
     m_dParkAz = dAz;
@@ -943,7 +953,7 @@ double CDomePro::getCurrentAz()
 {
     if(m_bIsConnected)
         getDomeAz(m_dCurrentAzPosition);
-    
+
     return m_dCurrentAzPosition;
 }
 
@@ -951,7 +961,7 @@ double CDomePro::getCurrentEl()
 {
     if(m_bIsConnected)
         getDomeEl(m_dCurrentElPosition);
-    
+
     return m_dCurrentElPosition;
 }
 
