@@ -129,9 +129,6 @@ int X2Dome::execModalSettingsDialog()
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     double dHomeAz;
     double dParkAz;
-    int nShutterBatteryPercent;
-    double dShutterBattery;
-    
 
     if (NULL == ui)
         return ERR_POINTER;
@@ -157,15 +154,6 @@ int X2Dome::execModalSettingsDialog()
     if(m_bLinked) {
         snprintf(szTmpBuf,16,"%d",m_DomePro.getNbTicksPerRev());
         dx->setPropertyString("ticksPerRev","text", szTmpBuf);
-        if(m_bHasShutterControl) {
-            m_DomePro.getBatteryLevels(dShutterBattery, nShutterBatteryPercent);
-            snprintf(szTmpBuf,16,"%d%% ( %3.2f V )",nShutterBatteryPercent, dShutterBattery);
-            dx->setPropertyString("shutterBatteryLevel","text", szTmpBuf);
-        }
-        else {
-            snprintf(szTmpBuf,16,"NA");
-            dx->setPropertyString("shutterBatteryLevel","text", szTmpBuf);
-        }
         dx->setEnabled("pushButton",true);
     }
     else {
@@ -210,8 +198,6 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
     bool bComplete = false;
     int nErr;
-    int nShutterBatteryPercent;
-    double dShutterBattery;
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     char szErrorMessage[LOG_BUFFER_SIZE];
     
@@ -247,24 +233,6 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
                 m_bCalibratingDome = false;
                 
             }
-            
-            if(m_bHasShutterControl && !m_bCalibratingDome) {
-                // don't ask to often
-                if (!(m_bBattRequest%4)) {
-                    if(m_bHasShutterControl) {
-                        m_DomePro.getBatteryLevels(dShutterBattery, nShutterBatteryPercent);
-                        snprintf(szTmpBuf,16,"%d%% ( %3.2f V )",nShutterBatteryPercent, dShutterBattery);
-                        uiex->setPropertyString("shutterBatteryLevel","text", szTmpBuf);
-                    }
-                    else {
-                        snprintf(szTmpBuf,16,"NA");
-                        uiex->setPropertyString("shutterBatteryLevel","text", szTmpBuf);
-                    }
-                }
-                m_bBattRequest++;
-            }
-
-            
         }
     }
 
@@ -319,7 +287,6 @@ void X2Dome::deviceInfoModel(BasicStringInterface& str)
         char cModel[SERIAL_BUFFER_SIZE];
         m_DomePro.getModel(cModel, SERIAL_BUFFER_SIZE);
         str = cModel;
-
     }
     else
         str = "N/A";

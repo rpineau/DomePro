@@ -25,11 +25,18 @@
 #define ATCL_ACK	0x8F
 #define ATCL_NACK	0xA5
 
+// some DomePro2 value definitions
+#define CLASSIC_DOME 0x0D
+#define CLAMSHELL    0x0E
+#define ROR          0x0F
 
+enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
+enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
+enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
 
 // error codes
 // Error code
-enum DomeProErrors {PD_OK=0, NOT_CONNECTED, PD_CANT_CONNECT, PD_BAD_CMD_RESPONSE, COMMAND_FAILED};
+enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED};
 enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, UNKNOWN, NOT_FITTED};
 
 class CDomePro
@@ -38,24 +45,37 @@ public:
     CDomePro();
     ~CDomePro();
 
-    int        Connect(const char *szPort);
-    void        Disconnect(void);
-    bool        IsConnected(void) { return m_bIsConnected; }
+    int     Connect(const char *szPort);
+    void    Disconnect(void);
+    bool    IsConnected(void) { return m_bIsConnected; }
 
-    void        SetSerxPointer(SerXInterface *p) { m_pSerx = p; }
-    void        setLogger(LoggerInterface *pLogger) { m_pLogger = pLogger; };
+    void    SetSerxPointer(SerXInterface *p) { m_pSerx = p; }
+    void    setLogger(LoggerInterface *pLogger) { m_pLogger = pLogger; };
 
-    // Dome commands
+    // Dome movement commands
     int syncDome(double dAz, double dEl);
     int parkDome(void);
     int unparkDome(void);
     int gotoAzimuth(double newAz);
     int openShutter();
     int closeShutter();
-    int getFirmwareVersion(char *version, int strMaxLen);
-    int getModel(char *model, int strMaxLen);
+    int abortCurrentCommand();
     int goHome();
     int calibrate();
+
+    // Dome informations
+    int getFirmwareVersion(char *version, int strMaxLen);
+    int getModel(char *model, int strMaxLen);
+    int getModuleType(int &nModuleType);
+    int getDomeAzMotorType(int &nMotorType);
+
+    int setDomeAzMotorPolarity(int nPolarity);
+    int getDomeAzMotorPolarity(int &nPolarity);
+
+    int setDomeAzEncoderPolarity(int nPolarity);
+    int getDomeAzEncoderPolarity(int &nPolarity);
+    
+    bool hasShutterUnit();
 
     // command complete functions
     int isGoToComplete(bool &complete);
@@ -66,11 +86,9 @@ public:
     int isFindHomeComplete(bool &complete);
     int isCalibratingComplete(bool &complete);
 
-    int abortCurrentCommand();
 
     // getter/setter
     int getNbTicksPerRev();
-    int getBatteryLevel();
 
     double getHomeAz();
     int setHomeAz(double dAz);
@@ -82,26 +100,44 @@ public:
     double getCurrentEl();
 
     int getCurrentShutterState();
-    int getBatteryLevels(double &shutterVolts, int &percent);
 
-    bool hasShutterUnit();
 
     void setDebugLog(bool enable);
 
 protected:
 
+    int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
-    int             getDomeAz(double &dDomeAz);
+
+    // movements
+    int             setDomeLeftOn(void);
+    int             setDomeRightOn(void);
+    int             killDomeAzimuthMovement(void);
+
+    // dome states
+    int             getDomeAzPosition(double &dDomeAz);
     int             getDomeEl(double &dDomeEl);
     int             getDomeHomeAz(double &dAz);
     int             getDomeParkAz(double &dAz);
     int             getShutterState(int &nState);
-    int             getDomeStepPerRev(int &nStepPerRev);
 
+    // command completion/state
     int             isDomeMoving(bool &bIsMoving);
     int             isDomeAtHome(bool &bAtHome);
 
-    int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
+    // DomePro getter / setter
+    int             setDomeAzCPR(int nValue);
+    int             getDomeAzCPR(int &nValue);
+
+    // not yet implemented in the firmware
+    int             setDomeMaxVel(int nValue);
+    int             getDomeMaxVel(int &nValue);
+    int             setDomeAccel(int nValue);
+    int             getDomeAccel(int &nValue);
+    //
+
+    int             setDomeAzCoast(int nValue);
+    int             getDomeAzCoast(int &nValue);
 
     LoggerInterface *m_pLogger;
     bool            m_bDebugLog;
@@ -112,8 +148,6 @@ protected:
     bool            m_bCalibrating;
 
     int             m_nNbStepPerRev;
-    double          m_dShutterBatteryVolts;
-    double          m_dShutterBatteryPercent;
     double          m_dHomeAz;
 
     double          m_dParkAz;
@@ -131,6 +165,12 @@ protected:
     bool            m_bShutterOpened;
 
     char            m_szLogBuffer[ND_LOG_BUFFER_SIZE];
+    int             m_nModel;
+    int             m_nModuleType;
+    int             m_nMotorType;
+    int             m_nMotorPolarity;
+    int             m_nAzEncoderPolarity;
+
 
 };
 
