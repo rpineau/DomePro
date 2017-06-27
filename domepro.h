@@ -33,11 +33,18 @@
 enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
 enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
+enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO};
 
-// error codes
-// Error code
 enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED};
-enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, UNKNOWN, NOT_FITTED};
+
+enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, NO_COM,
+                        SHUT1_OPEN_TO, SHUT1_CLOSE_TO, SHUT2_OPEN_TO, SHUT2_CLOSE_TO,
+                        SHUT1_OPEN_COMPL_TO, SHUT1_CLOSE_COMPL_TO,
+                        SHUT2_OPEN_COMPL_TO, SHUT2_CLOSE_COMPL_TO,
+                        NOT_FITTED, INTERMEDIATE, SHUT_GOTO
+                        };
+
+enum    SwitchState { INNACTIVE = 0, ACTIVE};
 
 class CDomePro
 {
@@ -101,7 +108,6 @@ public:
 
     int getCurrentShutterState();
 
-
     void setDebugLog(bool enable);
 
 protected:
@@ -119,7 +125,7 @@ protected:
     int             getDomeEl(double &dDomeEl);
     int             getDomeHomeAz(double &dAz);
     int             getDomeParkAz(double &dAz);
-    int             getShutterState(int &nState);
+    int             getDomeShutterStatus(int &nState);
 
     // command completion/state
     int             isDomeMoving(bool &bIsMoving);
@@ -138,7 +144,23 @@ protected:
 
     int             setDomeAzCoast(int nValue);
     int             getDomeAzCoast(int &nValue);
+    int             getDomeAzDiagPosition(int &nValue);
+    int             clearDomeAzDiagPosition(void);
+    int             GetDomeAzMoveMode(int &mode);
 
+    int             getDomeLimits(void);
+
+    int             setDomeHomeAzimuth(int nPos);
+    int             getDomeHomeAzimuth(int &nPos);
+    int             homeDomeAzimuth(void);
+    int             goToDomeAzimuth(int nPos);
+
+    int             setDomeParkAzimuth(int nPos);
+    int             getDomeParkAzimuth(int &nPos);
+    int             goToDomePark(void);
+    int             calibrateDomeAzimuth(int nPos);
+
+    // protected variables
     LoggerInterface *m_pLogger;
     bool            m_bDebugLog;
 
@@ -171,6 +193,13 @@ protected:
     int             m_nMotorPolarity;
     int             m_nAzEncoderPolarity;
 
+    int             m_nShutter1OpenedSwitchState;
+    int             m_nShutter1ClosedSwitchState;
+    int             m_nShutter2OpenedSwitchState;
+    int             m_nShutter2ClosedSwitchState;
+    int             m_nAtHomeState;
+    int             m_nAtHomeSwitchState;
+    int             m_nAtParkSate;
 
 };
 
