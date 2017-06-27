@@ -24,8 +24,8 @@ CDomePro::CDomePro()
 
     m_nNbStepPerRev = 0;
 
-    m_dHomeAz = 180;
-    m_dParkAz = 180;
+    m_dHomeAz = 0;
+    m_dParkAz = 0;
 
     m_dCurrentAzPosition = 0.0;
     m_dCurrentElPosition = 0.0;
@@ -113,26 +113,19 @@ void CDomePro::Disconnect()
 int CDomePro::syncDome(double dAz, double dEl)
 {
     int nErr = DP2_OK;
-    char szBuf[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nPos;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     m_dCurrentAzPosition = dAz;
-    snprintf(szBuf, SERIAL_BUFFER_SIZE, "ANGLE K %3.1f\r", dAz);
-    nErr = domeCommand(szBuf, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+
+    nPos = (m_nNbStepPerRev/360) * dAz;
+    nErr = calibrateDomeAzimuth(nPos);
     return nErr;
 }
-int CDomePro::parkDome()
+
+int CDomePro::goToDomePark(void)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -141,18 +134,10 @@ int CDomePro::parkDome()
         return NOT_CONNECTED;
 
     if(m_bCalibrating)
-        return SB_OK;
-
-    nErr = domeCommand("GO P\r", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
         return nErr;
 
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+    nErr = domeCommand("!DSgp;", szResp, SERIAL_BUFFER_SIZE);
+
     return nErr;
 }
 
@@ -160,6 +145,7 @@ int CDomePro::unparkDome()
 {
     m_bParked = false;
     m_dCurrentAzPosition = m_dParkAz;
+
     syncDome(m_dCurrentAzPosition,m_dCurrentElPosition);
     return 0;
 }
@@ -168,30 +154,18 @@ int CDomePro::gotoAzimuth(double dNewAz)
 {
 
     int nErr = DP2_OK;
-    char szBuf[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-
+    int nPos;
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    snprintf(szBuf, SERIAL_BUFFER_SIZE, "GO %3.1f\r", dNewAz);
-    nErr = domeCommand(szBuf, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
-
+    nPos = (m_nNbStepPerRev/360) * dNewAz;
+    nErr = goToDomeAzimuth(nPos);
     m_dGotoAz = dNewAz;
 
     return nErr;
 }
 
-int CDomePro::openShutter()
+int CDomePro::openDomeShutters()
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -202,20 +176,11 @@ int CDomePro::openShutter()
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("OPEN\r", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+    nErr = domeCommand("!DSso;", szResp, SERIAL_BUFFER_SIZE);
     return nErr;
 }
 
-int CDomePro::closeShutter()
+int CDomePro::CloseDomeShutters()
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -226,27 +191,21 @@ int CDomePro::closeShutter()
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("CLOSE\r", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+    nErr = domeCommand("!DSsc;", szResp, SERIAL_BUFFER_SIZE);
     return nErr;
 }
 
 int CDomePro::abortCurrentCommand()
 {
+    int nErr;
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     m_bCalibrating = false;
 
-    return (domeCommand("STOP\r", NULL, SERIAL_BUFFER_SIZE));
+    nErr = killDomeAzimuthMovement();
+    nErr |= killDomeShutterMovement();
+    return nErr;
 }
 
 int CDomePro::goHome()
@@ -260,17 +219,7 @@ int CDomePro::goHome()
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("GO H\r", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
-
+    nErr = homeDomeAzimuth();
     return nErr;
 }
 
@@ -1549,22 +1498,6 @@ int CDomePro::getDomeParkAzimuth(int &nPos)
 
 }
 
-int CDomePro::goToDomePark(void)
-{
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    if(!m_bIsConnected)
-        return NOT_CONNECTED;
-
-    if(m_bCalibrating)
-        return nErr;
-
-    nErr = domeCommand("!DSgp;", szResp, SERIAL_BUFFER_SIZE);
-
-    return nErr;
-}
-
 int CDomePro::calibrateDomeAzimuth(int nPos)
 {
     // this is a Sync.
@@ -1583,6 +1516,25 @@ int CDomePro::calibrateDomeAzimuth(int nPos)
 
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSca0x%08X;", nPos);
     nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+
+int CDomePro::killDomeShutterMovement(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DXxs;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
 
     return nErr;
 }

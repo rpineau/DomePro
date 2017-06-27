@@ -365,7 +365,7 @@ int X2Dome::dapiOpen(void)
     if(!m_bHasShutterControl)
         return SB_OK;
 
-    nErr = m_DomePro.openShutter();
+    nErr = m_DomePro.openDomeShutters();
     if(nErr)
         return ERR_CMDFAILED;
 
@@ -383,7 +383,7 @@ int X2Dome::dapiClose(void)
     if(!m_bHasShutterControl)
         return SB_OK;
 
-    nErr = m_DomePro.closeShutter();
+    nErr = m_DomePro.CloseDomeShutters();
     if(nErr)
         return ERR_CMDFAILED;
 
@@ -400,12 +400,12 @@ int X2Dome::dapiPark(void)
 
     if(m_bHasShutterControl)
     {
-        nErr = m_DomePro.closeShutter();
+        nErr = m_DomePro.CloseDomeShutters();
         if(nErr)
             return ERR_CMDFAILED;
     }
 
-    nErr = m_DomePro.parkDome();
+    nErr = m_DomePro.goToDomePark();
     if(nErr)
         return ERR_CMDFAILED;
 
@@ -419,10 +419,10 @@ int X2Dome::dapiUnpark(void)
 
     if(!m_bLinked)
         return ERR_NOLINK;
-
+    // may be we need a flag to decide if we want to open shutters on unpark.
     if(m_bHasShutterControl)
     {
-        nErr = m_DomePro.openShutter();
+        nErr = m_DomePro.openDomeShutters();
         if(nErr)
             return ERR_CMDFAILED;
     }

@@ -61,11 +61,13 @@ public:
 
     // Dome movement commands
     int syncDome(double dAz, double dEl);
-    int parkDome(void);
+
+    int goToDomePark(void);
+
     int unparkDome(void);
     int gotoAzimuth(double newAz);
-    int openShutter();
-    int closeShutter();
+    int openDomeShutters();
+    int CloseDomeShutters();
     int abortCurrentCommand();
     int goHome();
     int calibrate();
@@ -157,8 +159,9 @@ protected:
 
     int             setDomeParkAzimuth(int nPos);
     int             getDomeParkAzimuth(int &nPos);
-    int             goToDomePark(void);
     int             calibrateDomeAzimuth(int nPos);
+
+    int             killDomeShutterMovement(void);
 
     // protected variables
     LoggerInterface *m_pLogger;
