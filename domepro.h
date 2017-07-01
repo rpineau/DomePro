@@ -163,6 +163,26 @@ protected:
 
     int             killDomeShutterMovement(void);
 
+    int             getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen);
+    // controller low level data
+    int             getDomeSupplyVoltageAzimuthL(double &dVolts);
+    int             getDomeSupplyVoltageShutterL(double &dVolts);
+    int             getDomeSupplyVoltageAzimuthM(double &dVolts);
+    int             getDomeSupplyVoltageShutterM(double &dVolts);
+    // not yet implemented in the firmware
+    int             getDomeRotationSenseAnalog(double &dVolts);
+    //
+    int             setDomeShutter1_OpTimeOut(int nTimeout);
+    int             getDomeShutter1_OpTimeOut(int &nTimeout);
+    int             setDomeShutter2_OpTimeOut(int nTimeout);
+    int             getDomeShutter2_OpTimeOut(int &nTimeout);
+
+    int             setDomeShutODirTimeOut(int nTimeout);
+    int             getDomeShutODirTimeOut(int &nTimeout);
+
+    int             SetDomeAzimuthTimeOutEnabled(bool bEnable);
+    int             getDomeAzimuthTimeOutEnabled(bool &bEnable);
+
     // protected variables
     LoggerInterface *m_pLogger;
     bool            m_bDebugLog;
