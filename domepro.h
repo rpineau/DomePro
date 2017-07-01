@@ -117,6 +117,10 @@ protected:
     int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
 
+    // conversion functions
+    void AzToTicks(double pdAz, int &ticks);
+    void TicksToAz(int ticks, double &pdAz);
+
     // movements
     int             setDomeLeftOn(void);
     int             setDomeRightOn(void);
@@ -148,7 +152,7 @@ protected:
     int             getDomeAzCoast(int &nValue);
     int             getDomeAzDiagPosition(int &nValue);
     int             clearDomeAzDiagPosition(void);
-    int             GetDomeAzMoveMode(int &mode);
+    int             getDomeAzMoveMode(int &mode);
 
     int             getDomeLimits(void);
 

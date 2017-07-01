@@ -119,8 +119,7 @@ int CDomePro::syncDome(double dAz, double dEl)
         return NOT_CONNECTED;
 
     m_dCurrentAzPosition = dAz;
-
-    nPos = (m_nNbStepPerRev/360) * dAz;
+    AzToTicks(dAz, nPos);
     nErr = calibrateDomeAzimuth(nPos);
     return nErr;
 }
@@ -158,7 +157,7 @@ int CDomePro::gotoAzimuth(double dNewAz)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nPos = (m_nNbStepPerRev/360) * dNewAz;
+    AzToTicks(dNewAz, nPos);
     nErr = goToDomeAzimuth(nPos);
     m_dGotoAz = dNewAz;
 
@@ -222,28 +221,16 @@ int CDomePro::goHome()
     return nErr;
 }
 
+#pragma mark TODO : Calibrate needs rewriting
 int CDomePro::calibrate()
 {
     int nErr = DP2_OK;
-    char resp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     if(m_bCalibrating)
         return SB_OK;
-
-    nErr = domeCommand("CALIBRATE\r", resp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(resp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-        return nErr;
-    }
 
     m_bCalibrating = true;
     
@@ -384,7 +371,7 @@ int CDomePro::getDomeAzMotorPolarity(int &nPolarity)
     if(strstr(szResp,"Positive")) {
         m_nMotorPolarity = POSITIVE;
     }
-    else if(strstr(szResp,"Neative")) {
+    else if(strstr(szResp,"Negative")) {
         m_nMotorPolarity = NEGATIVE;
     }
 
@@ -446,7 +433,7 @@ int CDomePro::getDomeAzEncoderPolarity(int &nPolarity)
     if(strstr(szResp,"Positive")) {
         m_nAzEncoderPolarity = POSITIVE;
     }
-    else if(strstr(szResp,"Neative")) {
+    else if(strstr(szResp,"Negative")) {
         m_nAzEncoderPolarity = NEGATIVE;
     }
 
@@ -690,6 +677,7 @@ int CDomePro::getNbTicksPerRev()
 {
     if(m_bIsConnected)
         getDomeAzCPR(m_nNbStepPerRev);
+
     return m_nNbStepPerRev;
 }
 
@@ -705,23 +693,13 @@ double CDomePro::getHomeAz()
 int CDomePro::setHomeAz(double dAz)
 {
     int nErr = DP2_OK;
-    char szBuf[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nPos;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    snprintf(szBuf, SERIAL_BUFFER_SIZE, "HOME %3.1f\r", dAz);
-    nErr = domeCommand(szBuf, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+    AzToTicks(dAz, nPos);
+    setDomeHomeAzimuth(nPos);
     m_dHomeAz = dAz;
     return nErr;
 }
@@ -739,23 +717,13 @@ double CDomePro::getParkAz()
 int CDomePro::setParkAz(double dAz)
 {
     int nErr = DP2_OK;
-    char szBuf[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nPos;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    snprintf(szBuf, SERIAL_BUFFER_SIZE, "PARK %3.1f\r", dAz);
-    nErr = domeCommand(szBuf, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strncmp(szResp,"A",1) == 0) {
-        nErr = DP2_OK;
-    }
-    else {
-        nErr = DP2_BAD_CMD_RESPONSE;
-    }
+    AzToTicks(dAz, nPos);
+    setDomeParkAzimuth(nPos);
 
     m_dParkAz = dAz;
     return nErr;
@@ -885,6 +853,28 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
 
     return nErr;
 }
+
+#pragma mark - conversion functions
+
+//	Convert pdAz to number of ticks from home.
+void CDomePro::AzToTicks(double pdAz, int &ticks)
+{
+
+    ticks = (int) floor(0.5 + (pdAz - m_dHomeAz) * m_nNbStepPerRev / 360.0);
+    while (ticks > m_nNbStepPerRev) ticks -= m_nNbStepPerRev;
+    while (ticks < 0) ticks += m_nNbStepPerRev;
+}
+
+
+// Convert ticks from home to Az
+void CDomePro::TicksToAz(int ticks, double &pdAz)
+{
+
+    pdAz = m_dHomeAz + (ticks * 360.0 / m_nNbStepPerRev);
+    while (pdAz < 0) pdAz += 360;
+    while (pdAz >= 360) pdAz -= 360;
+}
+
 
 #pragma mark - Dome movements
 
@@ -1072,20 +1062,19 @@ int CDomePro::getDomeShutterStatus(int &nState)
 
 int CDomePro::isDomeMoving(bool &bIsMoving)
 {
-    int tmp;
     int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nMode;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nErr = domeCommand("MSTATE\r", szResp, SERIAL_BUFFER_SIZE);
+    bIsMoving = false;
+
+    nErr = getDomeAzMoveMode(nMode);
     if(nErr)
         return nErr;
 
-    bIsMoving = false;
-    tmp = atoi(szResp);
-    if(tmp != 0 || tmp != 3)
+    if(nMode != FIXED && nMode != AZ_TO)
         bIsMoving = true;
 
     return nErr;
@@ -1093,24 +1082,21 @@ int CDomePro::isDomeMoving(bool &bIsMoving)
 
 int CDomePro::isDomeAtHome(bool &bAtHome)
 {
-    int tmp;
     int nErr = DP2_OK;
-    char resp[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nErr = domeCommand("HOME ?\r", resp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return false;
-
     bAtHome = false;
-    tmp = atoi(resp);
-    if(tmp)
+
+    nErr = getDomeLimits();
+    if(nErr)
+        return nErr;
+
+    if(m_nAtHomeState == ACTIVE)
         bAtHome = true;
-    
+
     return nErr;
-    
 }
 
 #pragma mark - DomePro getter/setter
@@ -1309,7 +1295,7 @@ int CDomePro::clearDomeAzDiagPosition(void)
     return nErr;
 }
 
-int CDomePro::GetDomeAzMoveMode(int &mode)
+int CDomePro::getDomeAzMoveMode(int &mode)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
