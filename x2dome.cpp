@@ -405,7 +405,7 @@ int X2Dome::dapiPark(void)
             return ERR_CMDFAILED;
     }
 
-    nErr = m_DomePro.goToDomePark();
+    nErr = m_DomePro.gotoDomePark();
     if(nErr)
         return ERR_CMDFAILED;
 

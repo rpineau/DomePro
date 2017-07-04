@@ -89,7 +89,7 @@ int CDomePro::Connect(const char *pszPort)
     // assume the dome was parked
     getDomeParkAz(m_dCurrentAzPosition);
 
-    syncDome(m_dCurrentAzPosition,m_dCurrentElPosition);
+    syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     nErr = getDomeShutterStatus(nState);
 
     if(nState != NOT_FITTED )
@@ -125,7 +125,7 @@ int CDomePro::syncDome(double dAz, double dEl)
     return nErr;
 }
 
-int CDomePro::goToDomePark(void)
+int CDomePro::gotoDomePark(void)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -146,7 +146,7 @@ int CDomePro::unparkDome()
     m_bParked = false;
     m_dCurrentAzPosition = m_dParkAz;
 
-    syncDome(m_dCurrentAzPosition,m_dCurrentElPosition);
+    syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     return 0;
 }
 
@@ -160,6 +160,7 @@ int CDomePro::gotoAzimuth(double dNewAz)
 
     AzToTicks(dNewAz, nPos);
     nErr = goToDomeAzimuth(nPos);
+
     m_dGotoAz = dNewAz;
 
     return nErr;
@@ -204,7 +205,8 @@ int CDomePro::abortCurrentCommand()
     m_bCalibrating = false;
 
     nErr = killDomeAzimuthMovement();
-    nErr |= killDomeShutterMovement();
+    if(m_bHasShutter)
+        nErr |= killDomeShutterMovement();
     return nErr;
 }
 
@@ -658,7 +660,7 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
     if (ceil(m_dHomeAz) != ceil(dDomeAz)) {
         // We need to resync the current position to the home position.
         m_dCurrentAzPosition = m_dHomeAz;
-        syncDome(m_dCurrentAzPosition,m_dCurrentElPosition);
+        syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
         m_bHomed = true;
         bComplete = true;
     }

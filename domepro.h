@@ -62,7 +62,7 @@ public:
     // Dome movement commands
     int syncDome(double dAz, double dEl);
 
-    int goToDomePark(void);
+    int gotoDomePark(void);
 
     int unparkDome(void);
     int gotoAzimuth(double newAz);
