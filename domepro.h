@@ -19,7 +19,7 @@
 
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 5000
-#define ND_LOG_BUFFER_SIZE 256
+#define DP2_LOG_BUFFER_SIZE 256
 
 /// ATCL response code
 #define ATCL_ACK	0x8F
@@ -184,8 +184,59 @@ protected:
     int             setDomeShutODirTimeOut(int nTimeout);
     int             getDomeShutODirTimeOut(int &nTimeout);
 
-    int             SetDomeAzimuthTimeOutEnabled(bool bEnable);
+    int             setDomeAzimuthTimeOutEnabled(bool bEnable);
     int             getDomeAzimuthTimeOutEnabled(bool &bEnable);
+    int             setDomeAzimuthTimeOut(int nTimeout);
+    int             getDomeAzimuthTimeOut(int &nTimeout);
+    int             setDomeShutCloseOnLinkTimeOut(bool bEnable);
+    int             getDomeShutCloseOnLinkTimeOut(bool &bEnable);
+    int             setDomeShutCloseOnClientTimeOut(bool bEnable);
+    int             getDomeShutCloseOnClientTimeOut(bool &bEnable);
+    int             setDomeShutCloseClientTimeOut(int nTimeout);
+    int             getDomeShutCloseClientTimeOut(int &nTimeout);
+
+    // not yet implemented in the firmware
+    int             setDomeShutOpAtHome(bool bEnable);
+    int             getDomeShutOpAtHome(bool &bEnable);
+    //
+
+    int             getDomeShutdownInputState(bool &bEnable);
+    int             getDomePowerGoodInputState(bool &bEnable);
+
+    // not yet implemented in the firmware
+    int             getLastDomeShutdownEvent(void);
+    //
+
+    int             setDomeSingleShutterMode(bool bEnable);
+    int             getDomeSingleShutterMode(bool &bEnable);
+
+    int             getDomeLinkErrCnt(int &nErrCnt);
+    int             clearDomeLinkErrCnt(void);
+
+    // not yet implemented in the firmware
+    int             getDomeComErr(void);
+    int             clearDomeComErr(void);
+    //
+
+    int             openDomeShutter1(void);
+    int             openDomeShutter2(void);
+    int             closeDomeShutter1(void);
+    int             closeDomeShutter2(void);
+    int             stopDomeShutter1(void);
+    int             stopDomeShutter2(void);
+    int             goToDomeShutter1_ADC(int nPos);
+    int             goToDomeShutter2_ADC(int nPos);
+    int             getDomeShutter1_AltitudeADC(int &nPos);
+    int             getDomeShutter2_AltitudeADC(int &nPos);
+    int             setDomeShutterOpenFirst(int nShutter);
+    int             getDomeShutterOpenFirst(int &nShutter);
+    int             setDomeShutterCloseFirst(int nShutter);
+    int             getDomeShutterCloseFirst(int &nShutter);
+
+    int             getDomeShutterMotorADC(double &dVolts);
+    int             getDomeAzimuthMotorADC(double &dVolts);
+    int             getDomeShutterTempADC(double &dTemp);
+    int             getDomeAzimuthTempADC(double &dTemp);
 
     // protected variables
     LoggerInterface *m_pLogger;
@@ -213,7 +264,7 @@ protected:
     bool            m_bHasShutter;
     bool            m_bShutterOpened;
 
-    char            m_szLogBuffer[ND_LOG_BUFFER_SIZE];
+    char            m_szLogBuffer[DP2_LOG_BUFFER_SIZE];
     int             m_nModel;
     int             m_nModuleType;
     int             m_nMotorType;

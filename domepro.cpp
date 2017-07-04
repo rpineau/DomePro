@@ -35,10 +35,11 @@ CDomePro::CDomePro()
     m_bHasShutter = false;
     m_bShutterOpened = false;
 
-    m_bParked = true;
+    m_bParked = true;   // assume we were parked.
     m_bHomed = false;
+    
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
-    memset(m_szLogBuffer,0,ND_LOG_BUFFER_SIZE);
+    memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
 }
 
 CDomePro::~CDomePro()
@@ -63,17 +64,17 @@ int CDomePro::Connect(const char *pszPort)
         return ERR_COMMNOLINK;
 
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::Connect] Connected.\n");
+        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Connected.\n");
         m_pLogger->out(m_szLogBuffer);
 
-        snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::Connect] Getting Firmware.\n");
+        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Getting Firmware.\n");
         m_pLogger->out(m_szLogBuffer);
     }
     // if this fails we're not properly connected.
     nErr = getFirmwareVersion(m_szFirmwareVersion, SERIAL_BUFFER_SIZE);
     if(nErr) {
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::Connect] Error Getting Firmware.\n");
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Error Getting Firmware.\n");
             m_pLogger->out(m_szLogBuffer);
         }
         m_bIsConnected = false;
@@ -82,7 +83,7 @@ int CDomePro::Connect(const char *pszPort)
     }
 
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::Connect] Got Firmware.\n");
+        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Got Firmware.\n");
         m_pLogger->out(m_szLogBuffer);
     }
     // assume the dome was parked
@@ -480,7 +481,7 @@ int CDomePro::isGoToComplete(bool &bComplete)
     else {
         // we're not moving and we're not at the final destination !!!
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f\n", ceil(dDomeAz), ceil(m_dGotoAz));
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f\n", ceil(dDomeAz), ceil(m_dGotoAz));
             m_pLogger->out(m_szLogBuffer);
         }
         bComplete = false;
@@ -619,7 +620,7 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
     else {
         // we're not moving and we're not at the home position !!!
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::isFindHomeComplete] Not moving and not at home !!!\n");
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isFindHomeComplete] Not moving and not at home !!!\n");
             m_pLogger->out(m_szLogBuffer);
         }
         bComplete = false;
@@ -772,7 +773,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
 
     m_pSerx->purgeTxRx();
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Sending %s\n",pszCmd);
+        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Sending %s\n",pszCmd);
         m_pLogger->out(m_szLogBuffer);
     }
     nErr = m_pSerx->writeFile((void *)pszCmd, strlen(pszCmd), ulBytesWrite);
@@ -781,7 +782,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         return nErr;
     // read response
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Getting response.\n");
+        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Getting response.\n");
         m_pLogger->out(m_szLogBuffer);
     }
     nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
@@ -810,20 +811,20 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
         nErr = m_pSerx->readFile(pszBufPtr, 1, ulBytesRead, MAX_TIMEOUT);
         if(nErr) {
             if (m_bDebugLog) {
-                snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile error.\n");
+                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile error.\n");
                 m_pLogger->out(m_szLogBuffer);
             }
             return nErr;
         }
 
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] respBuffer = %s\n",pszRespBuffer);
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] respBuffer = %s\n",pszRespBuffer);
             m_pLogger->out(m_szLogBuffer);
         }
 
         if (ulBytesRead !=1) {// timeout
             if (m_bDebugLog) {
-                snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile Timeout.\n");
+                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile Timeout.\n");
                 m_pLogger->out(m_szLogBuffer);
             }
             nErr = DP2_BAD_CMD_RESPONSE;
@@ -831,7 +832,7 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
         }
         ulTotalBytesRead += ulBytesRead;
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,ND_LOG_BUFFER_SIZE,"[CDomePro::readResponse] nBytesRead = %lu\n",ulBytesRead);
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] nBytesRead = %lu\n",ulBytesRead);
             m_pLogger->out(m_szLogBuffer);
         }
         // check for  errors or single ACK
@@ -1486,7 +1487,6 @@ int CDomePro::getDomeParkAzimuth(int &nPos)
 
 int CDomePro::calibrateDomeAzimuth(int nPos)
 {
-    // this is a Sync.
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     char szCmd[SERIAL_BUFFER_SIZE];
@@ -1674,7 +1674,6 @@ int CDomePro::getDomeRotationSenseAnalog(double &dVolts)
 
 int CDomePro::setDomeShutter1_OpTimeOut(int nTimeout)
 {
-    // this is a Sync.
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     char szCmd[SERIAL_BUFFER_SIZE];
@@ -1717,7 +1716,6 @@ int CDomePro::getDomeShutter1_OpTimeOut(int &nTimeout)
 
 int CDomePro::setDomeShutter2_OpTimeOut(int nTimeout)
 {
-    // this is a Sync.
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     char szCmd[SERIAL_BUFFER_SIZE];
@@ -1761,7 +1759,6 @@ int CDomePro::getDomeShutter2_OpTimeOut(int &nTimeout)
 
 int CDomePro::setDomeShutODirTimeOut(int nTimeout)
 {
-    // this is a Sync.
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     char szCmd[SERIAL_BUFFER_SIZE];
@@ -1802,7 +1799,7 @@ int CDomePro::getDomeShutODirTimeOut(int &nTimeout)
     return nErr;
 }
 
-int CDomePro::SetDomeAzimuthTimeOutEnabled(bool bEnable)
+int CDomePro::setDomeAzimuthTimeOutEnabled(bool bEnable)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -1844,6 +1841,801 @@ int CDomePro::getDomeAzimuthTimeOutEnabled(bool &bEnable)
     if(strstr(szResp,"Yes"))
         bEnable = true;
 
+    return nErr;
+}
+
+int CDomePro::setDomeAzimuthTimeOut(int nTimeout)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(nTimeout < 10 && nTimeout > 500)
+        return COMMAND_FAILED;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSta0x%08X;", nTimeout);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeAzimuthTimeOut(int &nTimeout)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGta;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nTimeout = strtol(szResp, NULL, 16);
+
+    return nErr;
+}
+
+int CDomePro::setDomeShutCloseOnLinkTimeOut(bool bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(bEnable)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStsYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStsNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+    
+}
+
+int CDomePro::getDomeShutCloseOnLinkTimeOut(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGts;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
+int CDomePro::setDomeShutCloseOnClientTimeOut(bool bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(bEnable)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSteYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSteNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutCloseOnClientTimeOut(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGte;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+    
+    return nErr;
+}
+
+int CDomePro::setDomeShutCloseClientTimeOut(int nTimeout)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(nTimeout < 10 && nTimeout > 500)
+        return COMMAND_FAILED;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStc0x%08X;", nTimeout);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutCloseClientTimeOut(int &nTimeout)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGtc;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nTimeout = strtol(szResp, NULL, 16);
+    
+    return nErr;
+}
+
+#pragma mark not yet implemented in the firmware
+int CDomePro::setDomeShutOpAtHome(bool bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(bEnable)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+#pragma mark not yet implemented in the firmware
+int CDomePro::getDomeShutOpAtHome(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGsh;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutdownInputState(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGsi;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
+int CDomePro::getDomePowerGoodInputState(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGpi;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
+#pragma mark not yet implemented in the firmware
+int CDomePro::getLastDomeShutdownEvent(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+
+    nErr = domeCommand("!DGlv;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // need to parse output and set some varaible/structure representing the event
+
+    return nErr;
+}
+
+int CDomePro::setDomeSingleShutterMode(bool bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    if(bEnable)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSssYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSssNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeSingleShutterMode(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGss;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
+int CDomePro::getDomeLinkErrCnt(int &nErrCnt)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGle;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nErrCnt = strtol(szResp, NULL, 16);
+
+    return nErr;
+}
+
+int CDomePro::clearDomeLinkErrCnt(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DCle;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+#pragma mark not yet implemented in the firmware
+int CDomePro::getDomeComErr(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+
+    nErr = domeCommand("!DGce;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // need to parse output and set some varaible/structure representing the comms errors
+    
+    return nErr;
+}
+
+#pragma mark not yet implemented in the firmware
+int CDomePro::clearDomeComErr(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DCce;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::openDomeShutter1(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSo1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::openDomeShutter2(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSo2;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::closeDomeShutter1(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSc1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::closeDomeShutter2(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSc2;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::stopDomeShutter1(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSs1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::stopDomeShutter2(void)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DSs2;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::goToDomeShutter1_ADC(int nPos)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg10x%08X;", nPos);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::goToDomeShutter2_ADC(int nPos)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg20x%08X;", nPos);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutter1_AltitudeADC(int &nPos)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGa1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nPos = strtol(szResp, NULL, 16);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutter2_AltitudeADC(int &nPos)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGa2;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nPos = strtol(szResp, NULL, 16);
+
+    return nErr;
+}
+
+int CDomePro::setDomeShutterOpenFirst(int nShutter)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSof0x%02X;", nShutter);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+
+}
+
+int CDomePro::getDomeShutterOpenFirst(int &nShutter)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGof;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nShutter = strtol(szResp, NULL, 16);
+
+    return nErr;
+}
+
+int CDomePro::setDomeShutterCloseFirst(int nShutter)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DScf0x%02X;", nShutter);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+
+}
+
+int CDomePro::getDomeShutterCloseFirst(int &nShutter)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGcf;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nShutter = strtol(szResp, NULL, 16);
+    
+    return nErr;
+}
+
+int CDomePro::getDomeShutterMotorADC(double &dVolts)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    unsigned int ulTmp;
+    double dValue;
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGsc;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string
+    ulTmp = strtol(szResp, NULL, 16);
+
+    dValue = (double)ulTmp / 1023.0 * 3.3;
+    dValue = (dValue - 1.721) / 0.068847;
+    if (dValue < 0.0)
+        dValue = 0.0;
+
+    dVolts = dValue;
+    
+    return nErr;
+}
+
+int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    unsigned int ulTmp;
+    double dValue;
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGac;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string
+    ulTmp = strtol(szResp, NULL, 16);
+
+    dValue = (double)ulTmp / 1023.0 * 3.3;
+    dValue = (dValue - 1.721) / 0.068847;
+    if (dValue < 0.0)
+        dValue = 0.0;
+
+    dVolts = dValue;
+    
+    return nErr;
+}
+
+int CDomePro::getDomeShutterTempADC(double &dTemp)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    unsigned int ulTmp;
+    double dValue;
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGst;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string
+    ulTmp = strtol(szResp, NULL, 16);
+
+    dValue = (double)ulTmp / 1023.0 * 3.3;
+    dValue = (dValue - 1.721) / 0.068847;
+    if (dValue < 0.0)
+        dValue = 0.0;
+
+    dTemp = dValue;
+    
+    return nErr;
+}
+
+int CDomePro::getDomeAzimuthTempADC(double &dTemp)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    unsigned int ulTmp;
+    double dValue;
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    if(m_bCalibrating)
+        return nErr;
+
+    nErr = domeCommand("!DGat;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string
+    ulTmp = strtol(szResp, NULL, 16);
+
+    dValue = (double)ulTmp / 1023.0 * 3.3;
+    dValue = (dValue - 1.721) / 0.068847;
+    if (dValue < 0.0)
+        dValue = 0.0;
+
+    dTemp = dValue;
+    
     return nErr;
 }
 
