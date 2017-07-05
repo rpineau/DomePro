@@ -2139,7 +2139,6 @@ int CDomePro::getDomeShutterMotorADC(double &dVolts)
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     unsigned int ulTmp;
-    double dValue;
 
     nErr = domeCommand("!DGsc;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
@@ -2148,13 +2147,11 @@ int CDomePro::getDomeShutterMotorADC(double &dVolts)
     // convert result hex string
     ulTmp = strtol(szResp, NULL, 16);
 
-    dValue = (double)ulTmp / 1023.0 * 3.3;
-    dValue = (dValue - 1.721) / 0.068847;
-    if (dValue < 0.0)
-        dValue = 0.0;
+    dVolts = (double)ulTmp / 1023.0 * 3.3;
+    dVolts = (dVolts - 1.721) / 0.068847;
+    if (dVolts < 0.0)
+        dVolts = 0.0;
 
-    dVolts = dValue;
-    
     return nErr;
 }
 
@@ -2163,7 +2160,6 @@ int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     unsigned int ulTmp;
-    double dValue;
 
     nErr = domeCommand("!DGac;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
@@ -2172,13 +2168,11 @@ int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
     // convert result hex string
     ulTmp = strtol(szResp, NULL, 16);
 
-    dValue = (double)ulTmp / 1023.0 * 3.3;
-    dValue = (dValue - 1.721) / 0.068847;
-    if (dValue < 0.0)
-        dValue = 0.0;
+    dVolts = (double)ulTmp / 1023.0 * 3.3;
+    dVolts = (dVolts - 1.721) / 0.068847;
+    if (dVolts < 0.0)
+        dVolts = 0.0;
 
-    dVolts = dValue;
-    
     return nErr;
 }
 
@@ -2187,7 +2181,6 @@ int CDomePro::getDomeShutterTempADC(double &dTemp)
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     unsigned int ulTmp;
-    double dValue;
 
     nErr = domeCommand("!DGst;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
@@ -2196,13 +2189,9 @@ int CDomePro::getDomeShutterTempADC(double &dTemp)
     // convert result hex string
     ulTmp = strtol(szResp, NULL, 16);
 
-    dValue = (double)ulTmp / 1023.0 * 3.3;
-    dValue = (dValue - 1.721) / 0.068847;
-    if (dValue < 0.0)
-        dValue = 0.0;
+    dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
+    dTemp = dTemp / 0.01;
 
-    dTemp = dValue;
-    
     return nErr;
 }
 
@@ -2211,7 +2200,6 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     unsigned int ulTmp;
-    double dValue;
 
     nErr = domeCommand("!DGat;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
@@ -2220,13 +2208,9 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
     // convert result hex string
     ulTmp = strtol(szResp, NULL, 16);
 
-    dValue = (double)ulTmp / 1023.0 * 3.3;
-    dValue = (dValue - 1.721) / 0.068847;
-    if (dValue < 0.0)
-        dValue = 0.0;
+    dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
+    dTemp = dTemp / 0.01;
 
-    dTemp = dValue;
-    
     return nErr;
 }
 
