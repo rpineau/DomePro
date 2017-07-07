@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>618</width>
-    <height>725</height>
+    <width>637</width>
+    <height>742</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -53,9 +53,9 @@
       <property name="geometry">
        <rect>
         <x>8</x>
-        <y>192</y>
-        <width>248</width>
-        <height>296</height>
+        <y>160</y>
+        <width>256</width>
+        <height>352</height>
        </rect>
       </property>
       <property name="title">
@@ -65,9 +65,9 @@
        <property name="geometry">
         <rect>
          <x>8</x>
-         <y>72</y>
-         <width>232</width>
-         <height>153</height>
+         <y>80</y>
+         <width>240</width>
+         <height>152</height>
         </rect>
        </property>
        <property name="title">
@@ -76,82 +76,83 @@
        <widget class="QPushButton" name="pushButton">
         <property name="geometry">
          <rect>
-          <x>0</x>
+          <x>8</x>
           <y>23</y>
           <width>224</width>
-          <height>33</height>
+          <height>26</height>
          </rect>
         </property>
         <property name="text">
          <string>Calibrate</string>
         </property>
        </widget>
-       <widget class="QWidget" name="">
+       <widget class="QCheckBox" name="checkBox_2">
         <property name="geometry">
          <rect>
-          <x>8</x>
-          <y>56</y>
-          <width>208</width>
-          <height>25</height>
+          <x>0</x>
+          <y>120</y>
+          <width>136</width>
+          <height>18</height>
          </rect>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <item alignment="Qt::AlignLeft">
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>Counts per rev :</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="ticksPerRev">
-           <property name="maximum">
-            <number>65535</number>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <property name="text">
+         <string>Encoder Polarity</string>
+        </property>
        </widget>
-       <widget class="QWidget" name="verticalLayoutWidget">
+       <widget class="QLabel" name="label_3">
         <property name="geometry">
          <rect>
           <x>8</x>
           <y>88</y>
-          <width>208</width>
-          <height>25</height>
+          <width>128</width>
+          <height>24</height>
          </rect>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_3">
-         <item>
-          <widget class="QLabel" name="label_3">
-           <property name="text">
-            <string>Rotation coast : </string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="spinBox"/>
-         </item>
-        </layout>
+        <property name="text">
+         <string>Rotation coast (deg.) : </string>
+        </property>
        </widget>
-       <widget class="QWidget" name="horizontalLayoutWidget">
+       <widget class="QSpinBox" name="spinBox">
+        <property name="geometry">
+         <rect>
+          <x>144</x>
+          <y>88</y>
+          <width>88</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label">
         <property name="geometry">
          <rect>
           <x>8</x>
-          <y>120</y>
-          <width>208</width>
-          <height>25</height>
+          <y>64</y>
+          <width>96</width>
+          <height>16</height>
          </rect>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_5">
-         <item>
-          <widget class="QCheckBox" name="checkBox_2">
-           <property name="text">
-            <string>Polarity</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <property name="text">
+         <string>Counts per rev :</string>
+        </property>
+       </widget>
+       <widget class="QSpinBox" name="ticksPerRev">
+        <property name="geometry">
+         <rect>
+          <x>144</x>
+          <y>56</y>
+          <width>88</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+        <property name="maximum">
+         <number>65535</number>
+        </property>
        </widget>
       </widget>
       <widget class="QGroupBox" name="groupBox">
@@ -159,7 +160,7 @@
         <rect>
          <x>8</x>
          <y>24</y>
-         <width>232</width>
+         <width>240</width>
          <height>49</height>
         </rect>
        </property>
@@ -184,49 +185,85 @@
        <property name="geometry">
         <rect>
          <x>8</x>
-         <y>224</y>
-         <width>232</width>
-         <height>57</height>
+         <y>240</y>
+         <width>240</width>
+         <height>104</height>
         </rect>
        </property>
        <property name="title">
         <string>Homming</string>
        </property>
-       <widget class="QWidget" name="">
+       <widget class="QLabel" name="label_2">
         <property name="geometry">
          <rect>
           <x>8</x>
-          <y>24</y>
-          <width>209</width>
+          <y>64</y>
+          <width>132</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Home Position (Deg.) :</string>
+        </property>
+       </widget>
+       <widget class="QDoubleSpinBox" name="homePosition">
+        <property name="geometry">
+         <rect>
+          <x>144</x>
+          <y>64</y>
+          <width>72</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+        <property name="maximum">
+         <double>359.990000000000009</double>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_12">
+        <property name="geometry">
+         <rect>
+          <x>8</x>
+          <y>32</y>
+          <width>104</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Homing direction :</string>
+        </property>
+       </widget>
+       <widget class="QComboBox" name="comboBox_3">
+        <property name="geometry">
+         <rect>
+          <x>144</x>
+          <y>32</y>
+          <width>72</width>
           <height>26</height>
          </rect>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_2">
-         <item>
-          <widget class="QLabel" name="label_2">
-           <property name="text">
-            <string>Home Position (Deg.) :</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QDoubleSpinBox" name="homePosition">
-           <property name="maximum">
-            <double>359.990000000000009</double>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <item>
+         <property name="text">
+          <string>East</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>West</string>
+         </property>
+        </item>
        </widget>
       </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox_3">
       <property name="geometry">
        <rect>
-        <x>8</x>
-        <y>488</y>
-        <width>288</width>
-        <height>200</height>
+        <x>280</x>
+        <y>464</y>
+        <width>320</width>
+        <height>216</height>
        </rect>
       </property>
       <property name="title">
@@ -262,9 +299,9 @@
        <property name="geometry">
         <rect>
          <x>16</x>
-         <y>48</y>
-         <width>256</width>
-         <height>136</height>
+         <y>56</y>
+         <width>296</width>
+         <height>152</height>
         </rect>
        </property>
        <property name="title">
@@ -287,7 +324,7 @@
         <property name="geometry">
          <rect>
           <x>24</x>
-          <y>56</y>
+          <y>64</y>
           <width>72</width>
           <height>16</height>
          </rect>
@@ -300,9 +337,9 @@
         <property name="geometry">
          <rect>
           <x>96</x>
-          <y>48</y>
+          <y>56</y>
           <width>104</width>
-          <height>25</height>
+          <height>26</height>
          </rect>
         </property>
         <item>
@@ -320,7 +357,7 @@
         <property name="geometry">
          <rect>
           <x>24</x>
-          <y>80</y>
+          <y>96</y>
           <width>72</width>
           <height>16</height>
          </rect>
@@ -333,9 +370,9 @@
         <property name="geometry">
          <rect>
           <x>96</x>
-          <y>72</y>
+          <y>88</y>
           <width>104</width>
-          <height>25</height>
+          <height>26</height>
          </rect>
         </property>
         <item>
@@ -352,8 +389,8 @@
        <widget class="QCheckBox" name="checkBox_4">
         <property name="geometry">
          <rect>
-          <x>16</x>
-          <y>104</y>
+          <x>24</x>
+          <y>120</y>
           <width>224</width>
           <height>18</height>
          </rect>
@@ -367,10 +404,10 @@
      <widget class="QGroupBox" name="groupBox_6">
       <property name="geometry">
        <rect>
-        <x>264</x>
-        <y>192</y>
+        <x>280</x>
+        <y>160</y>
         <width>320</width>
-        <height>280</height>
+        <height>288</height>
        </rect>
       </property>
       <property name="title">
@@ -410,6 +447,9 @@
           <height>24</height>
          </rect>
         </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
         <property name="minimum">
          <number>10</number>
         </property>
@@ -425,7 +465,7 @@
        <property name="geometry">
         <rect>
          <x>8</x>
-         <y>80</y>
+         <y>88</y>
          <width>304</width>
          <height>104</height>
         </rect>
@@ -464,12 +504,12 @@
          <rect>
           <x>8</x>
           <y>80</y>
-          <width>192</width>
+          <width>184</width>
           <height>13</height>
          </rect>
         </property>
         <property name="text">
-         <string>Oposite dir timeout (4-240s) :</string>
+         <string>Opposite dir timeout (4-240s) :</string>
         </property>
        </widget>
        <widget class="QSpinBox" name="spinBox_3">
@@ -480,6 +520,9 @@
           <width>80</width>
           <height>24</height>
          </rect>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
         </property>
         <property name="minimum">
          <number>10</number>
@@ -497,6 +540,9 @@
           <height>24</height>
          </rect>
         </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
         <property name="minimum">
          <number>10</number>
         </property>
@@ -513,6 +559,9 @@
           <height>24</height>
          </rect>
         </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
         <property name="minimum">
          <number>4</number>
         </property>
@@ -528,8 +577,8 @@
        <property name="geometry">
         <rect>
          <x>8</x>
-         <y>184</y>
-         <width>296</width>
+         <y>200</y>
+         <width>304</width>
          <height>80</height>
         </rect>
        </property>
@@ -558,6 +607,9 @@
           <height>24</height>
          </rect>
         </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
         <property name="minimum">
          <number>10</number>
         </property>
@@ -580,13 +632,13 @@
        </widget>
       </widget>
      </widget>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>128</x>
+        <x>160</x>
         <y>8</y>
-        <width>322</width>
-        <height>175</height>
+        <width>281</width>
+        <height>145</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_4">
@@ -615,11 +667,11 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>360</x>
-        <y>648</y>
+        <x>32</x>
+        <y>640</y>
         <width>213</width>
         <height>40</height>
        </rect>
@@ -663,10 +715,12 @@
        </item>
       </layout>
      </widget>
+     <zorder>layoutWidget</zorder>
+     <zorder>layoutWidget</zorder>
      <zorder>MaxDomeIIParams</zorder>
-     <zorder>pushButtonCancel</zorder>
      <zorder>groupBox_3</zorder>
      <zorder>groupBox_6</zorder>
+     <zorder>label_9</zorder>
     </widget>
    </item>
   </layout>

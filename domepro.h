@@ -17,6 +17,20 @@
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"
 
+#define FILE_DEBUG 1   // define this to have log files
+
+
+#ifdef FILE_DEBUG
+#if defined(SB_WIN_BUILD)
+#define LOGFILENAME "C:\\DomePro_X2.log"
+#elif defined(SB_LINUX_BUILD)
+#define LOGFILENAME "/tmp/DomePro_X2.log"
+#elif defined(SB_MAC_BUILD)
+#define LOGFILENAME "/tmp/DomePro_X2.log"
+#endif
+#endif
+
+
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 5000
 #define DP2_LOG_BUFFER_SIZE 256
@@ -238,6 +252,8 @@ protected:
     int             getDomeShutterTempADC(double &dTemp);
     int             getDomeAzimuthTempADC(double &dTemp);
 
+    void            hexdump(const char *inputData, char *outBuffer, int size);
+    
     // protected variables
     LoggerInterface *m_pLogger;
     bool            m_bDebugLog;
@@ -278,6 +294,15 @@ protected:
     int             m_nAtHomeState;
     int             m_nAtHomeSwitchState;
     int             m_nAtParkSate;
+
+    char            m_hexdumpBuffer[(SERIAL_BUFFER_SIZE*3)+1];
+
+#ifdef FILE_DEBUG
+    // timestamp for logs
+    char *timestamp;
+    time_t ltime;
+    FILE *Logfile;	  // LogFile
+#endif
 
 };
 

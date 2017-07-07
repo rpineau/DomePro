@@ -40,10 +40,25 @@ CDomePro::CDomePro()
     
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
     memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
+
+#ifdef	FILE_DEBUG
+    Logfile = fopen(LOGFILENAME, "w");
+    ltime = time(NULL);
+    char *timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] CDomePro Constructor Called.\n", timestamp);
+    fflush(Logfile);
+#endif
+
 }
 
 CDomePro::~CDomePro()
 {
+#ifdef	FILE_DEBUG
+    if (Logfile)
+        fclose(Logfile);
+#endif
+
 
 }
 
@@ -54,7 +69,18 @@ int CDomePro::Connect(const char *pszPort)
     int nErr;
     int nState;
 
-    // 9600 8N1
+    if(!m_pSerx)
+        return ERR_COMMNOLINK;
+
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] Called\n", timestamp);
+    fflush(Logfile);
+#endif
+
+    // 19200 8N1
     if(m_pSerx->open(pszPort, 19200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1") == 0)
         m_bIsConnected = true;
     else
@@ -63,6 +89,14 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] connected to %s\n", timestamp, pszPort);
+    fflush(Logfile);
+#endif
+
     if (m_bDebugLog) {
         snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Connected.\n");
         m_pLogger->out(m_szLogBuffer);
@@ -70,6 +104,15 @@ int CDomePro::Connect(const char *pszPort)
         snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Getting Firmware.\n");
         m_pLogger->out(m_szLogBuffer);
     }
+
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] getting Firmware.\n", timestamp);
+    fflush(Logfile);
+#endif
+
     // if this fails we're not properly connected.
     nErr = getFirmwareVersion(m_szFirmwareVersion, SERIAL_BUFFER_SIZE);
     if(nErr) {
@@ -77,6 +120,14 @@ int CDomePro::Connect(const char *pszPort)
             snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Error Getting Firmware.\n");
             m_pLogger->out(m_szLogBuffer);
         }
+#ifdef FILE_DEBUG
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [CDomePro::Connect] Error %d Getting Firmware : %s\n", timestamp, nErr, m_szFirmwareVersion);
+        fflush(Logfile);
+#endif
+
         m_bIsConnected = false;
         m_pSerx->close();
         return FIRMWARE_NOT_SUPPORTED;
@@ -86,11 +137,29 @@ int CDomePro::Connect(const char *pszPort)
         snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Got Firmware.\n");
         m_pLogger->out(m_szLogBuffer);
     }
+
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] firmware  %s\n", timestamp, m_szFirmwareVersion);
+    fflush(Logfile);
+#endif
+
+
     // assume the dome was parked
     getDomeParkAz(m_dCurrentAzPosition);
 
     syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     nErr = getDomeShutterStatus(nState);
+
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dCurrentAzPosition  %f\n", timestamp, m_dCurrentAzPosition);
+    fflush(Logfile);
+#endif
 
     if(nState != NOT_FITTED )
         m_bHasShutter = true;
@@ -401,7 +470,7 @@ int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 
     m_nAzEncoderPolarity = nPolarity;
 
-    switch(m_nNbStepPerRev) {
+    switch(m_nAzEncoderPolarity) {
         case POSITIVE :
             snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSepPositive;");
             break;
@@ -778,6 +847,15 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Sending %s\n",pszCmd);
         m_pLogger->out(m_szLogBuffer);
     }
+
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::domeCommand] Sending %s\n", timestamp, pszCmd);
+    fflush(Logfile);
+#endif
+
     nErr = m_pSerx->writeFile((void *)pszCmd, strlen(pszCmd), ulBytesWrite);
     m_pSerx->flushTx();
     if(nErr)
@@ -788,14 +866,30 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         m_pLogger->out(m_szLogBuffer);
     }
     nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
+    if(nErr) {
 
+#ifdef FILE_DEBUG
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [CDomePro::domeCommand] error %d reading response : %s\n", timestamp, nErr, szResp);
+        fflush(Logfile);
+#endif
+        return nErr;
+    }
     if(pszResult)
         strncpy(pszResult, (const char *)szResp, nResultMaxLen);
 
+#ifdef FILE_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::domeCommand] got response : '%s'\n", timestamp, szResp);
+    fflush(Logfile);
+#endif
+
     return nErr;
-    
+
 }
 
 
@@ -819,10 +913,13 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
             return nErr;
         }
 
-        if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] respBuffer = %s\n",pszRespBuffer);
-            m_pLogger->out(m_szLogBuffer);
-        }
+#ifdef FILE_DEBUG
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [CDomePro::readResponse] *pszBufPtr = %02X\n", timestamp, *pszBufPtr);
+        fflush(Logfile);
+#endif
 
         if (ulBytesRead !=1) {// timeout
             if (m_bDebugLog) {
@@ -862,7 +959,8 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
 //	Convert pdAz to number of ticks from home.
 void CDomePro::AzToTicks(double pdAz, int &ticks)
 {
-    getDomeAzCPR(m_nNbStepPerRev);
+    if(!m_nNbStepPerRev)
+        getDomeAzCPR(m_nNbStepPerRev);
 
     ticks = (int) floor(0.5 + (pdAz - m_dHomeAz) * m_nNbStepPerRev / 360.0);
     while (ticks > m_nNbStepPerRev) ticks -= m_nNbStepPerRev;
@@ -873,7 +971,8 @@ void CDomePro::AzToTicks(double pdAz, int &ticks)
 // Convert ticks from home to Az
 void CDomePro::TicksToAz(int ticks, double &pdAz)
 {
-    getDomeAzCPR(m_nNbStepPerRev);
+    if(!m_nNbStepPerRev)
+        getDomeAzCPR(m_nNbStepPerRev);
 
     pdAz = m_dHomeAz + (ticks * 360.0 / m_nNbStepPerRev);
     while (pdAz < 0) pdAz += 360;
@@ -2214,4 +2313,15 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
     return nErr;
 }
 
+
+void  CDomePro::hexdump(const char* inputData, char *outBuffer, int size)
+{
+    char *buf = outBuffer;
+    int idx=0;
+    for(idx=0; idx<size; idx++){
+        snprintf((char *)buf,4,"%02X ", inputData[idx]);
+        buf+=3;
+    }
+    *buf = 0;
+}
 
