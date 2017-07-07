@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <memory.h>
+#include <string.h>
+#include <time.h>
 #ifdef SB_MAC_BUILD
 #include <unistd.h>
 #endif
@@ -130,7 +132,7 @@ int CDomePro::Connect(const char *pszPort)
 
         m_bIsConnected = false;
         m_pSerx->close();
-        return FIRMWARE_NOT_SUPPORTED;
+        return ERR_COMMNOLINK;
     }
 
     if (m_bDebugLog) {

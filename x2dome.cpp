@@ -165,7 +165,6 @@ int X2Dome::execModalSettingsDialog()
     dx->setPropertyDouble("homePosition","value", m_DomePro.getHomeAz());
     dx->setPropertyDouble("parkPosition","value", m_DomePro.getParkAz());
 
-    m_bBattRequest = 0;
     m_bCalibratingDome = false;
     
     X2MutexLocker ml(GetMutex());
