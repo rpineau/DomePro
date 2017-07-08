@@ -37,7 +37,8 @@ X2Dome::X2Dome(const char* pszSelection,
 	m_bLinked = false;
     m_bCalibratingDome = false;
     m_bBattRequest = 0;
-    
+    m_bDomeProDiagUI_enable = false;
+
     m_DomePro.SetSerxPointer(pSerX);
     m_DomePro.setLogger(pLogger);
 
@@ -199,7 +200,9 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     int nErr;
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     char szErrorMessage[LOG_BUFFER_SIZE];
-    
+    bool bPressedOK = false;
+
+
     if (!strcmp(pszEvent, "on_pushButtonCancel_clicked"))
         m_DomePro.abortCurrentCommand();
 
@@ -235,7 +238,8 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
         }
     }
 
-    if (!strcmp(pszEvent, "on_pushButton_clicked"))
+    // main dialog ok
+    if (!strcmp(pszEvent, "on_pushButtonOK_clicked") && !m_bDomeProDiagUI_enable)
     {
         if(m_bLinked) {
             // disable "ok" and "calibrate"
@@ -246,6 +250,42 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
         }
     }
 
+    // diag ui
+    if (!strcmp(pszEvent, "on_pushButtonOK_clicked") && m_bDomeProDiagUI_enable) {
+    }
+
+    if (!strcmp(pszEvent, "on_pushButton_2_clicked"))
+    {
+        doAddDomeProDiag(bPressedOK);
+    }
+}
+
+int X2Dome::doAddDomeProDiag(bool& bPressedOK)
+{
+    int nErr = SB_OK;
+    X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
+    X2GUIInterface*					ui = uiutil.X2UI();
+    X2GUIExchangeInterface*			dx = NULL;
+
+    bPressedOK = false;
+    if (NULL == ui)
+        return ERR_POINTER;
+    nErr = ui->loadUserInterface("DomeProDiag.ui", deviceType(), m_nPrivateISIndex);
+    if (nErr)
+        return nErr;
+
+    dx = uiutil.X2DX();
+    if (NULL == dx)
+        return ERR_POINTER;
+
+    m_bDomeProDiagUI_enable = true;
+
+    nErr = ui->exec(bPressedOK);
+    if (nErr )
+        return nErr;
+
+    m_bDomeProDiagUI_enable = false;
+    return nErr;
 }
 
 //

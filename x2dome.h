@@ -14,7 +14,7 @@ class MutexInterface;
 class BasicIniUtilInterface;
 class TickCountInterface;
 
-#define DRIVER_VERSION      1.1
+#define DRIVER_VERSION      1.0
 
 #define PARENT_KEY			"DomePro"
 #define CHILD_KEY_PORTNAME	"PortName"
@@ -75,7 +75,8 @@ public:
 
     virtual int initModalSettingsDialog(void){return 0;}
     virtual int execModalSettingsDialog(void);
-
+    virtual int doAddDomeProDiag(bool& bPressedOK);
+    
 	/*!\name HardwareInfoInterface Implementation
 	See HardwareInfoInterface.*/
 	//@{ 
@@ -148,9 +149,11 @@ private:
 
 	int         m_nPrivateISIndex;
 	bool        m_bLinked;
-    CDomePro  m_DomePro;
+    CDomePro    m_DomePro;
     bool        m_bHasShutterControl;
     bool        m_bOpenUpperShutterOnly;
     bool        m_bCalibratingDome;
     int         m_bBattRequest;
+    bool        m_bDomeProDiagUI_enable;
+
 };

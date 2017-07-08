@@ -2,6 +2,7 @@
 
 mkdir -p ROOT/tmp/DomePro_X2/
 cp "../DomePro.ui" ROOT/tmp/DomePro_X2/
+cp "../DomeProDiag.ui" ROOT/tmp/DomePro_X2/
 cp "../Astrometric.png" ROOT/tmp/DomePro_X2/
 cp "../domelist DomePro.txt" ROOT/tmp/DomePro_X2/
 cp "../build/Release/libDomePro.dylib" ROOT/tmp/DomePro_X2/
