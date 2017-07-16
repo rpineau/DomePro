@@ -1,18 +1,27 @@
-#include "DomePro.h"
+//
+// X2Dome Declaration
+//
+
+#include <stdio.h>
+#include <string.h>
+
+#include "../../licensedinterfaces/sberrorx.h"
+#include "../../licensedinterfaces/basicstringinterface.h"
+#include "../../licensedinterfaces/serxinterface.h"
+#include "../../licensedinterfaces/basiciniutilinterface.h"
+#include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
+#include "../../licensedinterfaces/sleeperinterface.h"
+#include "../../licensedinterfaces/loggerinterface.h"
+#include "../../licensedinterfaces/basiciniutilinterface.h"
+#include "../../licensedinterfaces/mutexinterface.h"
+#include "../../licensedinterfaces/tickcountinterface.h"
+#include "../../licensedinterfaces/serialportparams2interface.h"
 #include "../../licensedinterfaces/domedriverinterface.h"
 #include "../../licensedinterfaces/serialportparams2interface.h"
 #include "../../licensedinterfaces/modalsettingsdialoginterface.h"
 #include "../../licensedinterfaces/x2guiinterface.h"
 
-
-class SerXInterface;		
-class TheSkyXFacadeForDriversInterface;
-class SleeperInterface;
-class BasicIniUtilInterface;
-class LoggerInterface;
-class MutexInterface;
-class BasicIniUtilInterface;
-class TickCountInterface;
+#include "DomePro.h"
 
 #define DRIVER_VERSION      1.0
 

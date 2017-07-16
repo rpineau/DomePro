@@ -1,18 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-#include "x2dome.h"
-#include "../../licensedinterfaces/sberrorx.h"
-#include "../../licensedinterfaces/basicstringinterface.h"
-#include "../../licensedinterfaces/serxinterface.h"
-#include "../../licensedinterfaces/basiciniutilinterface.h"
-#include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
-#include "../../licensedinterfaces/sleeperinterface.h"
-#include "../../licensedinterfaces/loggerinterface.h"
-#include "../../licensedinterfaces/basiciniutilinterface.h"
-#include "../../licensedinterfaces/mutexinterface.h"
-#include "../../licensedinterfaces/tickcountinterface.h"
-#include "../../licensedinterfaces/serialportparams2interface.h"
+//
+// X2Dome implemntation
+//
 
+#include "x2dome.h"
 
 X2Dome::X2Dome(const char* pszSelection, 
 							 const int& nISIndex,
