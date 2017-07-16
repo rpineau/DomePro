@@ -6,15 +6,6 @@
 
 
 #include "domepro.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <memory.h>
-#include <string.h>
-#include <time.h>
-#ifdef SB_MAC_BUILD
-#include <unistd.h>
-#endif
 
 CDomePro::CDomePro()
 {

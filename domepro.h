@@ -6,8 +6,19 @@
 
 #ifndef __RIGEL_DOME__
 #define __RIGEL_DOME__
+#include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <ctype.h>
+#include <memory.h>
+#include <string.h>
+#include <time.h>
+#ifdef SB_MAC_BUILD
+#include <unistd.h>
+#endif
+
+
 #include <string>
 #include <vector>
 #include <sstream>
