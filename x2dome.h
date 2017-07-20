@@ -22,6 +22,7 @@
 #include "../../licensedinterfaces/x2guiinterface.h"
 
 #include "DomePro.h"
+#include "UI_map.h"
 
 #define DRIVER_VERSION      1.0
 

@@ -120,6 +120,9 @@ int X2Dome::execModalSettingsDialog()
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     double dHomeAz;
     double dParkAz;
+    int nTmp;
+    double dTmp;
+    bool bTmp;
 
     if (NULL == ui)
         return ERR_POINTER;
@@ -132,29 +135,109 @@ int X2Dome::execModalSettingsDialog()
 
 
     memset(szTmpBuf,0,SERIAL_BUFFER_SIZE);
-    if(m_bHasShutterControl)
-    {
-        dx->setChecked("hasShutterCtrl",true);
-    }
-    else
-    {
-        dx->setChecked("hasShutterCtrl",false);
-    }
 
     // set controls state depending on the connection state
     if(m_bLinked) {
-        snprintf(szTmpBuf,16,"%d",m_DomePro.getNbTicksPerRev());
-        dx->setPropertyString("ticksPerRev","text", szTmpBuf);
-        dx->setEnabled("pushButton",true);
+        //
+        // Dome Az
+        //
+
+        // Az motor
+        dx->setEnabled(CALIBRATE, true);
+        nErr = m_DomePro.getDomeAzCPR(nTmp);
+        dx->setPropertyInt(TICK_PER_REV, "value", nTmp);
+        dx->setEnabled(ROTATION_COAST, true);
+        nErr = m_DomePro.getDomeAzCoast(dTmp);
+        dx->setPropertyDouble(ROTATION_COAST, "value", dTmp);
+        dx->setEnabled(ENCODDER_POLARITY, true);
+        nErr = m_DomePro.getDomeAzEncoderPolarity(nTmp);
+        dx->setPropertyDouble(ENCODDER_POLARITY, "value", dTmp);
+        // Homing
+        dx->setEnabled(HOMING_DIR, true); // no corresponding function, need to ping Chris
+        dx->setEnabled(HOME_POS, true);
+        nErr = m_DomePro.getDomeHomeAz(dTmp);
+        dx->setPropertyDouble(HOME_POS, "value", dTmp);
+        dx->setEnabled(PARK_POS, true);
+        nErr = m_DomePro.getDomeParkAz(dTmp);
+        dx->setPropertyDouble(PARK_POS, "value", dTmp);
+        //
+        // Dome Shutter / Roof
+        //
+        m_DomePro.getModel(szTmpBuf, SERIAL_BUFFER_SIZE);
+        dx->setPropertyString(DOMEPRO_MODEL, "text", szTmpBuf);
+        // sequencing
+        if(m_DomePro.hasShutterUnit()) {
+            dx->setEnabled(SINGLE_SHUTTER, true);
+            m_DomePro.getDomeSingleShutterMode(bTmp);
+            if(bTmp) {
+                dx->setEnabled(OPEN_FIRST, false);
+                dx->setEnabled(CLOSE_FIRST, false);
+                dx->setEnabled(INHIBIT_SIMULT, false);
+
+            }
+            else { // 2 shutters
+                dx->setEnabled(OPEN_FIRST, true);
+                m_DomePro.getDomeShutterOpenFirst(nTmp);
+                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
+                dx->setEnabled(CLOSE_FIRST, true);
+                m_DomePro.getDomeShutterCloseFirst(nTmp);
+                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
+
+                dx->setEnabled(INHIBIT_SIMULT, true); // no corresponding function, need to ping Chris
+            }
+        }
+        else { // no shutter unit
+            dx->setChecked(SINGLE_SHUTTER,false);
+            dx->setEnabled(OPEN_FIRST, false);
+            dx->setEnabled(CLOSE_FIRST, false);
+            dx->setEnabled(INHIBIT_SIMULT, false);
+        }
+        //
+        // Dome timoute and automatic closure
+        //
+        // Az timout
+        dx->setEnabled(AZ_TIMEOUT_EN, true);
+        m_DomePro.getDomeAzimuthTimeOutEnabled(bTmp);
+        if(bTmp) {
+            dx->setChecked(AZ_TIMEOUT_EN,true);
+            dx->setEnabled(AZ_TIMEOUT_VAL, true);
+            m_DomePro.getDomeAzimuthTimeOut(nTmp);
+            dx->setPropertyInt(AZ_TIMEOUT_VAL, "value", nTmp);
+        }
+        else{
+            dx->setChecked(AZ_TIMEOUT_EN,false);
+            dx->setEnabled(AZ_TIMEOUT_VAL, false);
+        }
+
+        dx->setEnabled(TICK_PER_REV, true);
+        dx->setEnabled(TICK_PER_REV, true);
+
     }
-    else {
-        snprintf(szTmpBuf,16,"NA");
-        dx->setPropertyString("ticksPerRev","text", szTmpBuf);
-        dx->setPropertyString("shutterBatteryLevel","text", szTmpBuf);
-        dx->setEnabled("pushButton",false);
+    else { // not connected, disable all controls
+        // Az motor
+        dx->setEnabled(CALIBRATE, false);
+        dx->setEnabled(TICK_PER_REV, false);
+        dx->setEnabled(ROTATION_COAST, false);
+        dx->setEnabled(ENCODDER_POLARITY, false);
+        // Homing
+        dx->setEnabled(HOMING_DIR, false);
+        dx->setEnabled(HOME_POS, false);
+        dx->setEnabled(PARK_POS, false);
+        // Dome Shutter / Roof
+        dx->setPropertyString(DOMEPRO_MODEL, "text", "");
+        // sequencing
+        dx->setEnabled(SINGLE_SHUTTER, false);
+        dx->setEnabled(OPEN_FIRST, false);
+        dx->setEnabled(CLOSE_FIRST, false);
+        dx->setEnabled(INHIBIT_SIMULT, false);
+        
+        dx->setEnabled(AZ_TIMEOUT_EN, false);
+        dx->setEnabled(AZ_TIMEOUT_VAL, false);
+
+        dx->setEnabled(TICK_PER_REV, false);
+        dx->setEnabled(TICK_PER_REV, false);
+        dx->setEnabled(TICK_PER_REV, false);
     }
-    dx->setPropertyDouble("homePosition","value", m_DomePro.getHomeAz());
-    dx->setPropertyDouble("parkPosition","value", m_DomePro.getParkAz());
 
     m_bCalibratingDome = false;
     
@@ -167,8 +250,8 @@ int X2Dome::execModalSettingsDialog()
     //Retreive values from the user interface
     if (bPressedOK)
     {
-        dx->propertyDouble("homePosition", "value", dHomeAz);
-        dx->propertyDouble("parkPosition", "value", dParkAz);
+        dx->propertyDouble(HOME_POS, "value", dHomeAz);
+        dx->propertyDouble(PARK_POS, "value", dParkAz);
 
         if(m_bLinked)
         {
@@ -191,7 +274,11 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     char szErrorMessage[LOG_BUFFER_SIZE];
     bool bPressedOK = false;
+    int nTmp;
+    double dTmp;
 
+    printf("pszEvent : %s\n", pszEvent);
+    printf("m_bDomeProDiagUI_enable : %s\n", m_bDomeProDiagUI_enable ? "true" : "false");
 
     if (!strcmp(pszEvent, "on_pushButtonCancel_clicked"))
         m_DomePro.abortCurrentCommand();
@@ -204,8 +291,8 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
                 bComplete = false;
                 nErr = m_DomePro.isCalibratingComplete(bComplete);
                 if(nErr) {
-                    uiex->setEnabled("pushButton",true);
-                    uiex->setEnabled("pushButtonOK",true);
+                    uiex->setEnabled(CALIBRATE, true);
+                    uiex->setEnabled(BUTTON_OK, true);
                     snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error calibrating dome : Error %d", nErr);
                     uiex->messageBox("DomePro Calibrate", szErrorMessage);
                     m_bCalibratingDome = false;
@@ -217,37 +304,54 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
                 }
                 
                 // enable "ok" and "calibrate"
-                uiex->setEnabled("pushButton",true);
-                uiex->setEnabled("pushButtonOK",true);
+                uiex->setEnabled(CALIBRATE, true);
+                uiex->setEnabled(BUTTON_OK, true);
                 // read step per rev from dome
-                snprintf(szTmpBuf,16,"%d",m_DomePro.getNbTicksPerRev());
-                uiex->setPropertyString("ticksPerRev","text", szTmpBuf);
+                nErr = m_DomePro.getDomeAzCPR(nTmp);
+                uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
                 m_bCalibratingDome = false;
                 
             }
         }
     }
 
-    // main dialog ok
-    if (!strcmp(pszEvent, "on_pushButtonOK_clicked") && !m_bDomeProDiagUI_enable)
+    //
+    // main dialog
+    //
+    if (!strcmp(pszEvent, CALIBRATE_CLICKED) && !m_bDomeProDiagUI_enable)
     {
         if(m_bLinked) {
             // disable "ok" and "calibrate"
-            uiex->setEnabled("pushButton",false);
-            uiex->setEnabled("pushButtonOK",false);
+            uiex->setEnabled(CALIBRATE, false);
+            uiex->setEnabled(BUTTON_OK, false);
             m_DomePro.calibrate();
             m_bCalibratingDome = true;
         }
     }
 
-    // diag ui
-    if (!strcmp(pszEvent, "on_pushButtonOK_clicked") && m_bDomeProDiagUI_enable) {
-    }
-
-    if (!strcmp(pszEvent, "on_pushButton_2_clicked"))
+    if (!strcmp(pszEvent, DIAG_CKICKED))
     {
         doAddDomeProDiag(bPressedOK);
     }
+
+    //
+    // diag ui
+    //
+    if (!strcmp(pszEvent, DIAG_OK_CLICKED) && m_bDomeProDiagUI_enable) {
+    }
+
+    if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) && m_bDomeProDiagUI_enable)
+    {
+    }
+
+    if (!strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED) && m_bDomeProDiagUI_enable)
+    {
+    }
+
+    if (!strcmp(pszEvent, CLEAR_RFLINK_ERRORS_CLICKED) && m_bDomeProDiagUI_enable)
+    {
+    }
+
 }
 
 int X2Dome::doAddDomeProDiag(bool& bPressedOK)

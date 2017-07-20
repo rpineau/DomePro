@@ -738,23 +738,6 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
 
 #pragma mark - Getter / Setter
 
-int CDomePro::getNbTicksPerRev()
-{
-    if(m_bIsConnected)
-        getDomeAzCPR(m_nNbStepPerRev);
-
-    return m_nNbStepPerRev;
-}
-
-
-double CDomePro::getHomeAz()
-{
-    if(m_bIsConnected)
-        getDomeHomeAz(m_dHomeAz);
-
-    return m_dHomeAz;
-}
-
 int CDomePro::setHomeAz(double dAz)
 {
     int nErr = DP2_OK;
@@ -769,15 +752,20 @@ int CDomePro::setHomeAz(double dAz)
     return nErr;
 }
 
-
-double CDomePro::getParkAz()
+int CDomePro::getDomeAzCoast(double dAz)
 {
-    if(m_bIsConnected)
-        getDomeParkAz(m_dParkAz);
+    int nErr = DP2_OK;
+    int nPos;
 
-    return m_dParkAz;
+    nErr = getDomeAzCoast(nPos);
+    if(nErr)
+        return nErr;
 
+    TicksToAz(nPos, dAz);
+
+    return nErr;
 }
+
 
 int CDomePro::setParkAz(double dAz)
 {

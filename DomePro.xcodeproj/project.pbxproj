@@ -15,6 +15,7 @@
 		9322CCA01E2D9F9A00A8E881 /* domepro.h in Headers */ = {isa = PBXBuildFile; fileRef = 9322CC9A1E2D9F9A00A8E881 /* domepro.h */; };
 		9322CCA11E2D9F9A00A8E881 /* x2dome.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9322CC9B1E2D9F9A00A8E881 /* x2dome.cpp */; };
 		9322CCA21E2D9F9A00A8E881 /* x2dome.h in Headers */ = {isa = PBXBuildFile; fileRef = 9322CC9C1E2D9F9A00A8E881 /* x2dome.h */; };
+		93879F5E1F1ECEA2005BFF2A /* UI_map.h in Headers */ = {isa = PBXBuildFile; fileRef = 93879F5D1F1ECEA2005BFF2A /* UI_map.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		9322CC9A1E2D9F9A00A8E881 /* domepro.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = domepro.h; sourceTree = "<group>"; };
 		9322CC9B1E2D9F9A00A8E881 /* x2dome.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = x2dome.cpp; sourceTree = "<group>"; };
 		9322CC9C1E2D9F9A00A8E881 /* x2dome.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = x2dome.h; sourceTree = "<group>"; };
+		93879F5D1F1ECEA2005BFF2A /* UI_map.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UI_map.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +73,7 @@
 		9322CC961E2D9F1300A8E881 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				93879F5D1F1ECEA2005BFF2A /* UI_map.h */,
 				9322CC971E2D9F9A00A8E881 /* main.cpp */,
 				9322CC981E2D9F9A00A8E881 /* main.h */,
 				9322CC991E2D9F9A00A8E881 /* domepro.cpp */,
@@ -89,6 +92,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9322CC9E1E2D9F9A00A8E881 /* main.h in Headers */,
+				93879F5E1F1ECEA2005BFF2A /* UI_map.h in Headers */,
 				9322CCA01E2D9F9A00A8E881 /* domepro.h in Headers */,
 				9322CCA21E2D9F9A00A8E881 /* x2dome.h in Headers */,
 			);

@@ -122,12 +122,11 @@ public:
 
 
     // getter/setter
-    int getNbTicksPerRev();
-
-    double getHomeAz();
+    int getDomeHomeAz(double &dAz);
     int setHomeAz(double dAz);
 
-    double getParkAz();
+    int getDomeAzCoast(double dAz);
+
     int setParkAz(double dAz);
 
     double getCurrentAz();
@@ -137,62 +136,18 @@ public:
 
     void setDebugLog(bool enable);
 
-protected:
-
-    int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
-    int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
-
-    // conversion functions
-    void AzToTicks(double pdAz, int &ticks);
-    void TicksToAz(int ticks, double &pdAz);
-
-    // movements
-    int             setDomeLeftOn(void);
-    int             setDomeRightOn(void);
-    int             killDomeAzimuthMovement(void);
-
     // dome states
-    int             getDomeAzPosition(double &dDomeAz);
-    int             getDomeEl(double &dDomeEl);
-    int             getDomeHomeAz(double &dAz);
-    int             getDomeParkAz(double &dAz);
+    int getDomeAzPosition(double &dDomeAz);
+    int getDomeEl(double &dDomeEl);
+
+
+    int getDomeParkAz(double &dAz);
+
     int             getDomeShutterStatus(int &nState);
 
-    // command completion/state
-    int             isDomeMoving(bool &bIsMoving);
-    int             isDomeAtHome(bool &bAtHome);
-
-    // DomePro getter / setter
     int             setDomeAzCPR(int nValue);
     int             getDomeAzCPR(int &nValue);
 
-    // not yet implemented in the firmware
-    int             setDomeMaxVel(int nValue);
-    int             getDomeMaxVel(int &nValue);
-    int             setDomeAccel(int nValue);
-    int             getDomeAccel(int &nValue);
-    //
-
-    int             setDomeAzCoast(int nValue);
-    int             getDomeAzCoast(int &nValue);
-    int             getDomeAzDiagPosition(int &nValue);
-    int             clearDomeAzDiagPosition(void);
-    int             getDomeAzMoveMode(int &mode);
-
-    int             getDomeLimits(void);
-
-    int             setDomeHomeAzimuth(int nPos);
-    int             getDomeHomeAzimuth(int &nPos);
-    int             homeDomeAzimuth(void);
-    int             goToDomeAzimuth(int nPos);
-
-    int             setDomeParkAzimuth(int nPos);
-    int             getDomeParkAzimuth(int &nPos);
-    int             calibrateDomeAzimuth(int nPos);
-
-    int             killDomeShutterMovement(void);
-
-    int             getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen);
     // controller low level data
     int             getDomeSupplyVoltageAzimuthL(double &dVolts);
     int             getDomeSupplyVoltageShutterL(double &dVolts);
@@ -231,7 +186,6 @@ protected:
     // not yet implemented in the firmware
     int             getLastDomeShutdownEvent(void);
     //
-
     int             setDomeSingleShutterMode(bool bEnable);
     int             getDomeSingleShutterMode(bool &bEnable);
 
@@ -242,6 +196,63 @@ protected:
     int             getDomeComErr(void);
     int             clearDomeComErr(void);
     //
+    int             setDomeShutterOpenFirst(int nShutter);
+    int             getDomeShutterOpenFirst(int &nShutter);
+    int             setDomeShutterCloseFirst(int nShutter);
+    int             getDomeShutterCloseFirst(int &nShutter);
+
+    int             getDomeShutterMotorADC(double &dVolts);
+    int             getDomeAzimuthMotorADC(double &dVolts);
+    int             getDomeShutterTempADC(double &dTemp);
+    int             getDomeAzimuthTempADC(double &dTemp);
+
+protected:
+
+    int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
+    int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
+
+    // conversion functions
+    void AzToTicks(double pdAz, int &ticks);
+    void TicksToAz(int ticks, double &pdAz);
+
+    // movements
+    int             setDomeLeftOn(void);
+    int             setDomeRightOn(void);
+    int             killDomeAzimuthMovement(void);
+
+    // command completion/state
+    int             isDomeMoving(bool &bIsMoving);
+    int             isDomeAtHome(bool &bAtHome);
+
+    // DomePro getter / setter
+
+    // not yet implemented in the firmware
+    int             setDomeMaxVel(int nValue);
+    int             getDomeMaxVel(int &nValue);
+    int             setDomeAccel(int nValue);
+    int             getDomeAccel(int &nValue);
+    //
+
+    int             setDomeAzCoast(int nValue);
+    int             getDomeAzCoast(int &nValue);
+    int             getDomeAzDiagPosition(int &nValue);
+    int             clearDomeAzDiagPosition(void);
+    int             getDomeAzMoveMode(int &mode);
+
+    int             getDomeLimits(void);
+
+    int             setDomeHomeAzimuth(int nPos);
+    int             getDomeHomeAzimuth(int &nPos);
+    int             homeDomeAzimuth(void);
+    int             goToDomeAzimuth(int nPos);
+
+    int             setDomeParkAzimuth(int nPos);
+    int             getDomeParkAzimuth(int &nPos);
+    int             calibrateDomeAzimuth(int nPos);
+
+    int             killDomeShutterMovement(void);
+
+    int             getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen);
 
     int             openDomeShutter1(void);
     int             openDomeShutter2(void);
@@ -253,15 +264,6 @@ protected:
     int             goToDomeShutter2_ADC(int nPos);
     int             getDomeShutter1_AltitudeADC(int &nPos);
     int             getDomeShutter2_AltitudeADC(int &nPos);
-    int             setDomeShutterOpenFirst(int nShutter);
-    int             getDomeShutterOpenFirst(int &nShutter);
-    int             setDomeShutterCloseFirst(int nShutter);
-    int             getDomeShutterCloseFirst(int &nShutter);
-
-    int             getDomeShutterMotorADC(double &dVolts);
-    int             getDomeAzimuthMotorADC(double &dVolts);
-    int             getDomeShutterTempADC(double &dTemp);
-    int             getDomeAzimuthTempADC(double &dTemp);
 
     void            hexdump(const char *inputData, char *outBuffer, int size);
     
