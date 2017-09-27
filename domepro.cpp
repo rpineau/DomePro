@@ -302,7 +302,7 @@ int CDomePro::calibrate()
     return nErr;
 }
 
-#pragma mark dome controller informations
+#pragma mark - dome controller informations
 
 int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
 {
@@ -516,7 +516,7 @@ bool CDomePro::hasShutterUnit() {
 }
 
 
-#pragma mark command complete functions
+#pragma mark - command complete functions
 
 int CDomePro::isGoToComplete(bool &bComplete)
 {

@@ -42,10 +42,11 @@
 #define SECOND_SHUTTER_TIMEOUT		"label_10"
 #define SECOND_SHUTTER_TIMEOUT_VAL	"spinBox_4"
 #define OPPOSITE_DIR_TIMEOUT		"spinBox_5"
-// Atuomatic closure
 #define CLOSE_NO_COMM				"checkBox_6"
 #define CLOSE_NO_COMM_VAL			"spinBox_6"
 #define CLOSE_ON_RADIO_TIMEOUT		"checkBox_7"
+
+#define DIAG_BUTTON     "pushButton_2"
 
 // Cancel/Ok
 #define BUTTON_CANCEL	"pushButtonCancel"

@@ -210,8 +210,8 @@ int X2Dome::execModalSettingsDialog()
         }
 
         dx->setEnabled(TICK_PER_REV, true);
-        dx->setEnabled(TICK_PER_REV, true);
 
+        dx->setEnabled(DIAG_BUTTON, true);
     }
     else { // not connected, disable all controls
         // Az motor
@@ -237,6 +237,9 @@ int X2Dome::execModalSettingsDialog()
         dx->setEnabled(TICK_PER_REV, false);
         dx->setEnabled(TICK_PER_REV, false);
         dx->setEnabled(TICK_PER_REV, false);
+
+        dx->setEnabled(DIAG_BUTTON, false);
+
     }
 
     m_bCalibratingDome = false;
