@@ -38,11 +38,11 @@ CDomePro::CDomePro()
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
     m_sLogfilePath += getenv("HOMEPATH");
-    m_sLogfilePath += "\\ATCSLog.txt";
+    m_sLogfilePath += "\\ATCLLog.txt";
 #elif defined(SB_LINUX_BUILD)
-    m_sLogfilePath = "/tmp/ATCSLog.txt";
+    m_sLogfilePath = "/tmp/ATCLLog.txt";
 #elif defined(SB_MAC_BUILD)
-    m_sLogfilePath = "/tmp/ATCSLog.txt";
+    m_sLogfilePath = "/tmp/ATCLLog.txt";
 #endif
     Logfile = fopen(m_sLogfilePath.c_str(), "w");
 #endif
@@ -51,7 +51,7 @@ CDomePro::CDomePro()
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] ATCS New Constructor Called\n", timestamp);
+    fprintf(Logfile, "[%s] ATCL New Constructor Called\n", timestamp);
     fflush(Logfile);
 #endif
 
