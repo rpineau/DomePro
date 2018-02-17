@@ -28,18 +28,7 @@
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"
 
-#define FILE_DEBUG 1   // define this to have log files
-
-
-#ifdef FILE_DEBUG
-#if defined(SB_WIN_BUILD)
-#define LOGFILENAME "C:\\DomePro_X2.log"
-#elif defined(SB_LINUX_BUILD)
-#define LOGFILENAME "/tmp/DomePro_X2.log"
-#elif defined(SB_MAC_BUILD)
-#define LOGFILENAME "/tmp/DomePro_X2.log"
-#endif
-#endif
+#define ATCL_DEBUG 1   // define this to have log files
 
 
 #define SERIAL_BUFFER_SIZE 256
@@ -310,7 +299,8 @@ protected:
 
     char            m_hexdumpBuffer[(SERIAL_BUFFER_SIZE*3)+1];
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
+    std::string m_sLogfilePath;
     // timestamp for logs
     char *timestamp;
     time_t ltime;

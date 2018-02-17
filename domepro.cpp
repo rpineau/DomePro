@@ -34,20 +34,33 @@ CDomePro::CDomePro()
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
     memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
 
-#ifdef	FILE_DEBUG
-    Logfile = fopen(LOGFILENAME, "w");
+#ifdef ATCL_DEBUG
+#if defined(SB_WIN_BUILD)
+    m_sLogfilePath = getenv("HOMEDRIVE");
+    m_sLogfilePath += getenv("HOMEPATH");
+    m_sLogfilePath += "\\ATCSLog.txt";
+#elif defined(SB_LINUX_BUILD)
+    m_sLogfilePath = "/tmp/ATCSLog.txt";
+#elif defined(SB_MAC_BUILD)
+    m_sLogfilePath = "/tmp/ATCSLog.txt";
+#endif
+    Logfile = fopen(m_sLogfilePath.c_str(), "w");
+#endif
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
-    char *timestamp = asctime(localtime(&ltime));
+    timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CDomePro Constructor Called.\n", timestamp);
+    fprintf(Logfile, "[%s] ATCS New Constructor Called\n", timestamp);
     fflush(Logfile);
 #endif
+
 
 }
 
 CDomePro::~CDomePro()
 {
-#ifdef	FILE_DEBUG
+#ifdef	ATCL_DEBUG
     if (Logfile)
         fclose(Logfile);
 #endif
@@ -65,11 +78,11 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_pSerx)
         return ERR_COMMNOLINK;
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] Called\n", timestamp);
+    fprintf(Logfile, "[%s] [CDomePro::Connect] Connect called.\n", timestamp);
     fflush(Logfile);
 #endif
 
@@ -82,7 +95,7 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -98,7 +111,7 @@ int CDomePro::Connect(const char *pszPort)
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -113,7 +126,7 @@ int CDomePro::Connect(const char *pszPort)
             snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Error Getting Firmware.\n");
             m_pLogger->out(m_szLogBuffer);
         }
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
@@ -131,7 +144,7 @@ int CDomePro::Connect(const char *pszPort)
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -146,7 +159,7 @@ int CDomePro::Connect(const char *pszPort)
     syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     nErr = getDomeShutterStatus(nState);
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -829,7 +842,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -849,7 +862,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
     nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
     if(nErr) {
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
@@ -861,7 +874,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
     if(pszResult)
         strncpy(pszResult, (const char *)szResp, nResultMaxLen);
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -894,7 +907,7 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
             return nErr;
         }
 
-#ifdef FILE_DEBUG
+#ifdef ATCL_DEBUG
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
