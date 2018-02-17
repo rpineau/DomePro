@@ -78,7 +78,7 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_pSerx)
         return ERR_COMMNOLINK;
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -95,7 +95,7 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -111,7 +111,7 @@ int CDomePro::Connect(const char *pszPort)
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -144,7 +144,7 @@ int CDomePro::Connect(const char *pszPort)
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -159,7 +159,7 @@ int CDomePro::Connect(const char *pszPort)
     syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     nErr = getDomeShutterStatus(nState);
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -842,7 +842,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
         m_pLogger->out(m_szLogBuffer);
     }
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -862,7 +862,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
     nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
     if(nErr) {
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
@@ -874,7 +874,7 @@ int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen
     if(pszResult)
         strncpy(pszResult, (const char *)szResp, nResultMaxLen);
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
@@ -907,7 +907,7 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
             return nErr;
         }
 
-#ifdef ATCL_DEBUG
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
