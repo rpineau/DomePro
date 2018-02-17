@@ -752,7 +752,7 @@ int CDomePro::setHomeAz(double dAz)
     return nErr;
 }
 
-int CDomePro::getDomeAzCoast(double dAz)
+int CDomePro::getDomeAzCoast(double &dAz)
 {
     int nErr = DP2_OK;
     int nPos;
@@ -1023,7 +1023,7 @@ int CDomePro::getDomeAzPosition(double &dDomeAz)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-    unsigned long nTmp;
+    int nTmp;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -1036,7 +1036,7 @@ int CDomePro::getDomeAzPosition(double &dDomeAz)
         return nErr;
 
     // convert Az hex string to long
-    nTmp = strtol(szResp, NULL, 16);
+    nTmp = (int)strtol(szResp, NULL, 16);
 
     TicksToAz(nTmp, dDomeAz);
 
@@ -1108,7 +1108,7 @@ int CDomePro::getDomeShutterStatus(int &nState)
     if(nErr)
         return nErr;
 
-    nShutterState = strtol(szResp, NULL, 16);
+    nShutterState = (int)strtol(szResp, NULL, 16);
 
     switch(nShutterState) {
         case OPEN:
@@ -1206,7 +1206,7 @@ int CDomePro::getDomeAzCPR(int &nValue)
         return nErr;
 
     // convert result hex string to long
-    nValue = strtol(szResp, NULL, 16);
+    nValue = (int)strtol(szResp, NULL, 16);
     return nErr;
 }
 
@@ -1240,7 +1240,7 @@ int CDomePro::getDomeMaxVel(int &nValue)
         return nErr;
 
     // convert result hex string to long
-    nValue = strtol(szResp, NULL, 16);
+    nValue = (int)strtol(szResp, NULL, 16);
     return nErr;
 }
 
@@ -1274,7 +1274,7 @@ int CDomePro::getDomeAccel(int &nValue)
         return nErr;
 
     // convert result hex string to long
-    nValue = strtol(szResp, NULL, 16);
+    nValue = (int)strtol(szResp, NULL, 16);
     return nErr;
 }
 
@@ -1308,7 +1308,7 @@ int CDomePro::getDomeAzCoast(int &nValue)
         return nErr;
 
     // convert result hex string to long
-    nValue = strtol(szResp, NULL, 16);
+    nValue = (int)strtol(szResp, NULL, 16);
     return nErr;
 }
 
@@ -1322,7 +1322,7 @@ int CDomePro::getDomeAzDiagPosition(int &nValue)
         return nErr;
 
     // convert result hex string to long
-    nValue = strtol(szResp, NULL, 16);
+    nValue = (int)strtol(szResp, NULL, 16);
     return nErr;
 }
 
@@ -1415,7 +1415,7 @@ int CDomePro::getDomeHomeAzimuth(int &nPos)
         return nErr;
 
     // convert result hex string to long
-    nPos = strtol(szResp, NULL, 16);
+    nPos = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1471,7 +1471,7 @@ int CDomePro::getDomeParkAzimuth(int &nPos)
         return nErr;
 
     // convert result hex string to long
-    nPos = strtol(szResp, NULL, 16);
+    nPos = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1531,7 +1531,7 @@ int CDomePro::getDomeSupplyVoltageAzimuthL(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
 
@@ -1549,7 +1549,7 @@ int CDomePro::getDomeSupplyVoltageShutterL(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
     
@@ -1568,7 +1568,7 @@ int CDomePro::getDomeSupplyVoltageAzimuthM(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp * 1; // TBD
 
@@ -1588,7 +1588,7 @@ int CDomePro::getDomeSupplyVoltageShutterM(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp * 1; // TBD
 
@@ -1607,7 +1607,7 @@ int CDomePro::getDomeRotationSenseAnalog(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp / 255 * 5; // FF = 5v, 0 = 0v
     
@@ -1640,7 +1640,7 @@ int CDomePro::getDomeShutter1_OpTimeOut(int &nTimeout)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = strtol(szResp, NULL, 16);
+    nTimeout = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1671,7 +1671,7 @@ int CDomePro::getDomeShutter2_OpTimeOut(int &nTimeout)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = strtol(szResp, NULL, 16);
+    nTimeout = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1701,7 +1701,7 @@ int CDomePro::getDomeShutODirTimeOut(int &nTimeout)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = strtol(szResp, NULL, 16);
+    nTimeout = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1764,7 +1764,7 @@ int CDomePro::getDomeAzimuthTimeOut(int &nTimeout)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = strtol(szResp, NULL, 16);
+    nTimeout = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -1859,7 +1859,7 @@ int CDomePro::getDomeShutCloseClientTimeOut(int &nTimeout)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = strtol(szResp, NULL, 16);
+    nTimeout = (int)strtol(szResp, NULL, 16);
     
     return nErr;
 }
@@ -1987,7 +1987,7 @@ int CDomePro::getDomeLinkErrCnt(int &nErrCnt)
         return nErr;
 
     // convert result hex string to long
-    nErrCnt = strtol(szResp, NULL, 16);
+    nErrCnt = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -2138,7 +2138,7 @@ int CDomePro::getDomeShutter1_AltitudeADC(int &nPos)
         return nErr;
 
     // convert result hex string to long
-    nPos = strtol(szResp, NULL, 16);
+    nPos = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -2153,7 +2153,7 @@ int CDomePro::getDomeShutter2_AltitudeADC(int &nPos)
         return nErr;
 
     // convert result hex string to long
-    nPos = strtol(szResp, NULL, 16);
+    nPos = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -2181,7 +2181,7 @@ int CDomePro::getDomeShutterOpenFirst(int &nShutter)
         return nErr;
 
     // convert result hex string to long
-    nShutter = strtol(szResp, NULL, 16);
+    nShutter = (int)strtol(szResp, NULL, 16);
 
     return nErr;
 }
@@ -2209,7 +2209,7 @@ int CDomePro::getDomeShutterCloseFirst(int &nShutter)
         return nErr;
 
     // convert result hex string to long
-    nShutter = strtol(szResp, NULL, 16);
+    nShutter = (int)strtol(szResp, NULL, 16);
     
     return nErr;
 }
@@ -2225,7 +2225,7 @@ int CDomePro::getDomeShutterMotorADC(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp / 1023.0 * 3.3;
     dVolts = (dVolts - 1.721) / 0.068847;
@@ -2246,7 +2246,7 @@ int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dVolts = (double)ulTmp / 1023.0 * 3.3;
     dVolts = (dVolts - 1.721) / 0.068847;
@@ -2267,7 +2267,7 @@ int CDomePro::getDomeShutterTempADC(double &dTemp)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
     dTemp = dTemp / 0.01;
@@ -2286,7 +2286,7 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
         return nErr;
 
     // convert result hex string
-    ulTmp = strtol(szResp, NULL, 16);
+    ulTmp = (int)strtol(szResp, NULL, 16);
 
     dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
     dTemp = dTemp / 0.01;

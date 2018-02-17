@@ -125,7 +125,7 @@ public:
     int getDomeHomeAz(double &dAz);
     int setHomeAz(double dAz);
 
-    int getDomeAzCoast(double dAz);
+    int getDomeAzCoast(double &dAz);
 
     int setParkAz(double dAz);
 

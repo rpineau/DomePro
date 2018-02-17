@@ -21,7 +21,7 @@
 #include "../../licensedinterfaces/modalsettingsdialoginterface.h"
 #include "../../licensedinterfaces/x2guiinterface.h"
 
-#include "DomePro.h"
+#include "domepro.h"
 #include "UI_map.h"
 
 #define DRIVER_VERSION      1.0
