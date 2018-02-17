@@ -135,6 +135,7 @@ int X2Dome::execModalSettingsDialog()
 
 
     memset(szTmpBuf,0,SERIAL_BUFFER_SIZE);
+    X2MutexLocker ml(GetMutex());
 
     // set controls state depending on the connection state
     if(m_bLinked) {
@@ -244,7 +245,6 @@ int X2Dome::execModalSettingsDialog()
 
     m_bCalibratingDome = false;
     
-    X2MutexLocker ml(GetMutex());
 
     //Display the user interface
     if ((nErr = ui->exec(bPressedOK)))
