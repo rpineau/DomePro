@@ -1,8 +1,8 @@
 //
 //  DomePro.cpp
-//  Rigel rotation drive unit for Pulsar Dome X2 plugin
+//  ATCL Dome X2 plugin
 //
-//  Created by Rodolphe Pineau on 6/11/2016.
+//  Created by Rodolphe Pineau on 6/11/2017.
 
 
 #include "domepro.h"
