@@ -127,7 +127,7 @@ int X2Dome::execModalSettingsDialog()
     if (NULL == ui)
         return ERR_POINTER;
 
-    if ((nErr = ui->loadUserInterface("DomePro.ui", deviceType(), m_nPrivateISIndex)))
+    if ((nErr = ui->loadUserInterface("domepro.ui", deviceType(), m_nPrivateISIndex)))
         return nErr;
 
     if (NULL == (dx = uiutil.X2DX()))
@@ -367,7 +367,7 @@ int X2Dome::doAddDomeProDiag(bool& bPressedOK)
     bPressedOK = false;
     if (NULL == ui)
         return ERR_POINTER;
-    nErr = ui->loadUserInterface("DomeProDiag.ui", deviceType(), m_nPrivateISIndex);
+    nErr = ui->loadUserInterface("domeprodiag.ui", deviceType(), m_nPrivateISIndex);
     if (nErr)
         return nErr;
 
