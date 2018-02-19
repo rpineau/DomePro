@@ -560,15 +560,25 @@ int CDomePro::isGoToComplete(bool &bComplete)
         return nErr;
         }
 
+    getDomeAzPosition(dDomeAz);
+
     if(bIsMoving) {
         bComplete = false;
-        getDomeAzPosition(dDomeAz);
         return nErr;
     }
 
-    getDomeAzPosition(dDomeAz);
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz   =  %3.2f\n", timestamp, dDomeAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz =  %3.2f\n", timestamp, m_dGotoAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] floor(dDomeAz)   =  %3.2f\n", timestamp, floor(dDomeAz));
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] floor(m_dGotoAz) =  %3.2f\n", timestamp, floor(m_dGotoAz));
+    fflush(Logfile);
+#endif
 
-    if (ceil(m_dGotoAz) == ceil(dDomeAz))
+    if ((floor(m_dGotoAz) <= floor(dDomeAz)+1) && (floor(m_dGotoAz) >= floor(dDomeAz)-1))
         bComplete = true;
     else {
         // we're not moving and we're not at the final destination !!!
@@ -653,7 +663,7 @@ int CDomePro::isParkComplete(bool &bComplete)
         return nErr;
     }
 
-    if (ceil(m_dParkAz) == ceil(dDomeAz))
+    if ((floor(m_dParkAz) <= floor(dDomeAz)+1) && (floor(m_dParkAz) >= floor(dDomeAz)-1))
     {
         m_bParked = true;
         bComplete = true;
@@ -747,10 +757,10 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
 
     nErr = getDomeAzPosition(dDomeAz);
 
-    if (ceil(m_dHomeAz) != ceil(dDomeAz)) {
+    if ((floor(m_dHomeAz) <= floor(dDomeAz)+1) && (floor(m_dHomeAz) >= floor(dDomeAz)-1)) {
         // We need to resync the current position to the home position.
-        m_dCurrentAzPosition = m_dHomeAz;
-        syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
+        //m_dCurrentAzPosition = m_dHomeAz;
+        //syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
         m_bHomed = true;
         bComplete = true;
     }
