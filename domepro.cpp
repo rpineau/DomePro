@@ -154,9 +154,10 @@ int CDomePro::Connect(const char *pszPort)
 
 
     // assume the dome was parked
-    getDomeParkAz(m_dCurrentAzPosition);
+    nErr = getDomeParkAz(m_dCurrentAzPosition);
+    if(!nErr)
+        syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
 
-    syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
     nErr = getDomeShutterStatus(nState);
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
@@ -353,7 +354,7 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
     if(nErr)
         return nErr;
 
-    m_nModel = atoi(szResp);
+    m_nModel = (int)strtol(szResp, NULL, 16);
     switch(m_nModel) {
         case CLASSIC_DOME :
             strncpy(pszModel, "DomePro2-d", SERIAL_BUFFER_SIZE);
@@ -366,7 +367,21 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
         case ROR :
             strncpy(pszModel, "DomePro2-r", SERIAL_BUFFER_SIZE);
             break;
+
+        default:
+            strncpy(pszModel, "Unknown", SERIAL_BUFFER_SIZE);
+            break;
     }
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::getModel] Model =  %s\n", timestamp, pszModel);
+    fflush(Logfile);
+#endif
+
+
     return nErr;
 }
 
