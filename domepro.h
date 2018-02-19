@@ -43,6 +43,20 @@
 #define CLAMSHELL    0x0E
 #define ROR          0x0F
 
+// Dome limits bitfield def
+#define BitShutter1_Opened          (0x1)<<0
+#define BitShutter1_Closed          (0x1)<<1
+#define BitShutter2_Opened          (0x1)<<2
+#define BitShutter2_Closed          (0x1)<<3
+#define BitShutter1_Opened_Fault    (0x1)<<4
+#define BitShutter1_Closed_Fault    (0x1)<<5
+#define BitShutter2_Opened_Fault    (0x1)<<6
+#define BitShutter2_Closed_Fault    (0x1)<<7
+#define BitAtHome                   (0x1)<<8
+#define BitHomeSwitchState          (0x1)<<9
+#define BitAtPark                   (0x1)<<10
+
+
 enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
 enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
