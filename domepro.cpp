@@ -160,12 +160,12 @@ int CDomePro::Connect(const char *pszPort)
 
     nErr = getDomeShutterStatus(nState);
     nErr = getDomeLimits();
-    
+
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dCurrentAzPosition  %f\n", timestamp, m_dCurrentAzPosition);
+    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dCurrentAzPosition : %3.2f\n", timestamp, m_dCurrentAzPosition);
     fflush(Logfile);
 #endif
 
@@ -313,7 +313,17 @@ int CDomePro::calibrate()
         return SB_OK;
 
     m_bCalibrating = true;
-    
+    nErr = setDomeHomeDirection(RIGHT);
+    if(nErr)
+        return nErr;
+
+    // home first
+    nErr = goHome();
+    if(nErr) {
+        m_nCalibrtionState= NO_CAL;
+        return nErr;
+    }
+    m_nCalibrtionState = CAL_HOMING;
     return nErr;
 }
 
@@ -745,41 +755,61 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
 
 int CDomePro::isCalibratingComplete(bool &bComplete)
 {
-    int nErr = 0;
-    double dDomeAz = 0;
-    bool bIsMoving = false;
+    int nErr = DP2_OK;
+    bool bStateComplete = false;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
+    
+    switch(m_nCalibrtionState) {
+        case CAL_HOMING :
+            nErr = isFindHomeComplete(bStateComplete);
+            if (bStateComplete) {
+                m_nCalibrtionState = PASSING_HOME;
+                getDomeAzCPR(m_nCprOvershoot);
+                clearDomeAzDiagPosition();
+                setDomeRightOn();
+            }
+            break;
 
-    nErr = isDomeMoving(bIsMoving);
-    if(nErr)
-        return nErr;
+        case PASSING_HOME :
+            nErr = isPassingHomeComplete(bStateComplete);
+            if (bStateComplete) {
+                killDomeAzimuthMovement();
+                m_nCalibrtionState = CAL_RE_HOMING;
+                goHome();
+            }
+            break;
 
-    if(bIsMoving) {
-        getDomeAzPosition(dDomeAz);
-        m_bHomed = false;
-        bComplete = false;
-        return nErr;
+        case CAL_RE_HOMING :
+            nErr = isFindHomeComplete(bStateComplete);
+            if (bStateComplete) {
+                m_nCalibrtionState = CAL_DONE;
+                nErr = getDomeAzDiagPosition(m_nNbStepPerRev);
+                m_nNbStepPerRev += m_nCprOvershoot;
+                setDomeAzCPR(m_nCprOvershoot);
+            }
+            break;
+
+        default:
+            break;
     }
-
-    nErr = getDomeAzPosition(dDomeAz);
-
-    if ((floor(m_dHomeAz) <= floor(dDomeAz)+1) && (floor(m_dHomeAz) >= floor(dDomeAz)-1)) {
-        // We need to resync the current position to the home position.
-        //m_dCurrentAzPosition = m_dHomeAz;
-        //syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
-        m_bHomed = true;
-        bComplete = true;
-    }
-
-    nErr = getDomeAzCPR(m_nNbStepPerRev);
-    m_bHomed = true;
-    bComplete = true;
-    m_bCalibrating = false;
     return nErr;
 }
 
+int CDomePro::isPassingHomeComplete(bool &bComplete)
+{
+    int nErr = DP2_OK;
+    bComplete = false;
+    nErr = getDomeLimits();
+    if(nErr) {
+        return nErr;
+    }
+    if(m_nAtHomeSwitchState != ACTIVE)
+        bComplete = true;
+
+    return nErr;
+}
 
 
 #pragma mark - Getter / Setter
@@ -1458,6 +1488,44 @@ int CDomePro::getDomeLimits(void)
 
     return nErr;
 }
+
+
+int CDomePro::setDomeHomeDirection(int nDir)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    if(nDir == LEFT) {
+        nErr = domeCommand("DShdLeft", szResp, SERIAL_BUFFER_SIZE);
+    }
+    else if (nDir == RIGHT) {
+        nErr = domeCommand("DShdRight", szResp, SERIAL_BUFFER_SIZE);
+    }
+    else {
+        return INVALID_COMMAND;
+    }
+
+    return nErr;
+}
+
+int CDomePro::GetDomeHomeDirection(int &nDir)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGhd;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    if(strstr(szResp, "Left")) {
+        nDir = LEFT;
+    }
+    else if(strstr(szResp, "Right")) {
+        nDir = RIGHT;
+    }
+    return nErr;
+}
+
 
 int CDomePro::setDomeHomeAzimuth(int nPos)
 {

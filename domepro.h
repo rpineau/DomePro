@@ -62,7 +62,7 @@ enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
 enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO};
 
-enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED};
+enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED, INVALID_COMMAND};
 
 enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, NO_COM,
                         SHUT1_OPEN_TO, SHUT1_CLOSE_TO, SHUT2_OPEN_TO, SHUT2_CLOSE_TO,
@@ -71,7 +71,8 @@ enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, NO_CO
                         NOT_FITTED, INTERMEDIATE, SHUT_GOTO
                         };
 
-enum    SwitchState { INNACTIVE = 0, ACTIVE};
+enum SwitchState { INNACTIVE = 0, ACTIVE};
+enum CalibrationState {NO_CAL, CAL_HOMING, PASSING_HOME, CAL_RE_HOMING, CAL_DONE};
 
 class CDomePro
 {
@@ -121,7 +122,8 @@ public:
     int isUnparkComplete(bool &complete);
     int isFindHomeComplete(bool &complete);
     int isCalibratingComplete(bool &complete);
-
+    int isPassingHomeComplete(bool &bComplete);
+    
 
     // getter/setter
     int getDomeHomeAz(double &dAz);
@@ -240,8 +242,9 @@ protected:
     int             getDomeAzDiagPosition(int &nValue);
     int             clearDomeAzDiagPosition(void);
     int             getDomeAzMoveMode(int &mode);
-
     int             getDomeLimits(void);
+    int             setDomeHomeDirection(int nDir);
+    int             GetDomeHomeDirection(int &nDir);
 
     int             setDomeHomeAzimuth(int nPos);
     int             getDomeHomeAzimuth(int &nPos);
@@ -279,6 +282,7 @@ protected:
     bool            m_bCalibrating;
 
     int             m_nNbStepPerRev;
+    int             m_nCprOvershoot;
     double          m_dHomeAz;
 
     double          m_dParkAz;
@@ -312,6 +316,7 @@ protected:
 
     char            m_hexdumpBuffer[(SERIAL_BUFFER_SIZE*3)+1];
 
+    int             m_nCalibrtionState;
 #ifdef ATCL_DEBUG
     std::string m_sLogfilePath;
     // timestamp for logs
