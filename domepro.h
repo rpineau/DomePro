@@ -282,6 +282,7 @@ protected:
     bool            m_bCalibrating;
 
     int             m_nNbStepPerRev;
+    int             m_nNbStepPerRev_save;
     int             m_nCprOvershoot;
     double          m_dHomeAz;
 

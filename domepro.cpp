@@ -294,9 +294,6 @@ int CDomePro::goHome()
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    if(m_bCalibrating)
-        return SB_OK;
-
     nErr = homeDomeAzimuth();
     return nErr;
 }
@@ -306,24 +303,24 @@ int CDomePro::calibrate()
 {
     int nErr = DP2_OK;
 
+    m_nCalibrtionState= NO_CAL;
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    if(m_bCalibrating)
-        return SB_OK;
-
-    m_bCalibrating = true;
     nErr = setDomeHomeDirection(RIGHT);
-    if(nErr)
+    if(nErr) {
         return nErr;
+    }
+    // if there is an error during calibration this value is restored.
+    m_nNbStepPerRev_save = m_nNbStepPerRev;
 
     // home first
     nErr = goHome();
     if(nErr) {
-        m_nCalibrtionState= NO_CAL;
         return nErr;
     }
     m_nCalibrtionState = CAL_HOMING;
+    m_bCalibrating = true;
     return nErr;
 }
 
@@ -766,18 +763,18 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
             nErr = isFindHomeComplete(bStateComplete);
             if (bStateComplete) {
                 m_nCalibrtionState = PASSING_HOME;
-                getDomeAzCPR(m_nCprOvershoot);
-                clearDomeAzDiagPosition();
-                setDomeRightOn();
+                nErr |= getDomeAzCPR(m_nCprOvershoot);
+                nErr |= clearDomeAzDiagPosition();
+                nErr |= setDomeRightOn();
             }
             break;
 
         case PASSING_HOME :
             nErr = isPassingHomeComplete(bStateComplete);
             if (bStateComplete) {
-                killDomeAzimuthMovement();
+                nErr |= killDomeAzimuthMovement();
                 m_nCalibrtionState = CAL_RE_HOMING;
-                goHome();
+                nErr |= goHome();
             }
             break;
 
@@ -785,14 +782,23 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
             nErr = isFindHomeComplete(bStateComplete);
             if (bStateComplete) {
                 m_nCalibrtionState = CAL_DONE;
-                nErr = getDomeAzDiagPosition(m_nNbStepPerRev);
+                m_bCalibrating = false;
+                nErr |= getDomeAzDiagPosition(m_nNbStepPerRev);
                 m_nNbStepPerRev += m_nCprOvershoot;
-                setDomeAzCPR(m_nCprOvershoot);
+                nErr |= setDomeAzCPR(m_nNbStepPerRev);
             }
             break;
 
         default:
             break;
+    }
+    // if we got any error we stop the calibration
+    if(nErr) {
+        killDomeAzimuthMovement();
+        m_nCalibrtionState = NO_CAL;
+        m_bCalibrating = false;
+        // restore previous value as there was an error
+        m_nNbStepPerRev = m_nNbStepPerRev_save;
     }
     return nErr;
 }
@@ -1047,9 +1053,6 @@ int CDomePro::setDomeLeftOn(void)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    if(m_bCalibrating)
-        return nErr;
-
     nErr = domeCommand("!DSol;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
@@ -1064,9 +1067,6 @@ int CDomePro::setDomeRightOn(void)
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
-
-    if(m_bCalibrating)
-        return nErr;
 
     nErr = domeCommand("!DSor;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
@@ -1083,8 +1083,6 @@ int CDomePro::killDomeAzimuthMovement(void)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    if(m_bCalibrating)
-        return nErr;
 
     nErr = domeCommand("!DXxa;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
