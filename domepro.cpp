@@ -792,7 +792,7 @@ int CDomePro::isCalibratingComplete(bool &bComplete)
         default:
             break;
     }
-    // if we got any error we stop the calibration
+    // if there was any error, stop the calibration
     if(nErr) {
         killDomeAzimuthMovement();
         m_nCalibrtionState = NO_CAL;
