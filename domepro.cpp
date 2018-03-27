@@ -38,11 +38,13 @@ CDomePro::CDomePro()
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
     m_sLogfilePath += getenv("HOMEPATH");
-    m_sLogfilePath += "\\ATCLLog.txt";
+    m_sLogfilePath += "\\DomeProLog.txt";
 #elif defined(SB_LINUX_BUILD)
-    m_sLogfilePath = "/tmp/ATCLLog.txt";
+    m_sLogfilePath = getenv("HOME");
+    m_sLogfilePath += "/DomeProLog.txt";
 #elif defined(SB_MAC_BUILD)
-    m_sLogfilePath = "/tmp/ATCLLog.txt";
+    m_sLogfilePath = getenv("HOME");
+    m_sLogfilePath += "/DomeProLog.txt";
 #endif
     Logfile = fopen(m_sLogfilePath.c_str(), "w");
 #endif
@@ -51,7 +53,7 @@ CDomePro::CDomePro()
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] ATCL New Constructor Called\n", timestamp);
+    fprintf(Logfile, "[%s] CDomePro Constructor Called\n", timestamp);
     fflush(Logfile);
 #endif
 
@@ -64,8 +66,6 @@ CDomePro::~CDomePro()
     if (Logfile)
         fclose(Logfile);
 #endif
-
-
 }
 
 #pragma mark - Dome Communication
