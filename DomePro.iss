@@ -58,7 +58,7 @@ function FindFile(RootPath: string; FileName: string): string;
   FindRec: TFindRec;
   FilePath: string;
 begin
-  Log(Format('Searching %s for %s', [RootPath, FileName]));
+  { Log(Format('Searching %s for %s', [RootPath, FileName])); }
   if FindFirst(RootPath + '\*', FindRec) then
   begin
     try
@@ -93,16 +93,19 @@ end;
 
 function TSXInstallDir(Param: String) : String;
  var
+  TheSkyXInstallPath: String;
   Location: String;
   LoadResult: Boolean;
 begin
-   Location := FindFile(ExpandConstant('{userdocs}') + '\Software Bisque', 'TheSkyXInstallPath.txt');
+   TheSkyXInstallPath := FindFile(ExpandConstant('{userdocs}') + '\Software Bisque', 'TheSkyXInstallPath.txt');
   { Check that could open the file}
-  if Length(Location)=0 then
-    RaiseException('Unable to find the installation path for The Sky X :' + Location);
+  if Length(TheSkyXInstallPath)=0 then
+    RaiseException('Unable to find the installation path for The Sky X :' + TheSkyXInstallPath);
+  LoadResult := LoadStringFromFile(TheSkyXInstallPath, Location)
   {Check that the file exists}
-  if not FileExists(Location) then
+  if not DirExists(Location) then
     RaiseException('The SkyX installation directory ' + Location + ' does not exist');
+
   Result := Location;
 end;
 
