@@ -8,7 +8,7 @@ RM = rm -f
 STRIP = strip
 TARGET_LIB = libDomePro.so
 
-SRCS = main.cpp rigeldome.cpp x2dome.cpp
+SRCS = main.cpp domepro.cpp x2dome.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 .PHONY: all
