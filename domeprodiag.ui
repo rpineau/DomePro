@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>DomePro diagnostic data</string>
+   <string>Diagnostic data</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_5">
    <item>

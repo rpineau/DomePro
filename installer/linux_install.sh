@@ -25,16 +25,20 @@ if [ ! -d "$TheSkyX_Path" ]; then
 fi
 
 cp "./domelist DomePro.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
-cp "./DomePro.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
-cp "./DomeProDiag.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
+cp "./domepro.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
+cp "./domeprodiag.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
+cp "./domeshutter.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
+cp "./dometimeouts.ui" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
 cp "./Astrometric.png" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
 cp "./libDomePro.so" "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/"
 
 app_owner=`/usr/bin/stat -c "%u" "$TheSkyX_Path" | xargs id -n -u`
 if [ ! -z "$app_owner" ]; then
 	chown $app_owner "$TheSkyX_Path/Resources/Common/Miscellaneous Files/domelist DomePro.txt"
-	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/DomePro.ui"
-	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/DomeProDiag.ui"
+	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/domepro.ui"
+	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/domeprodiag.ui"
+	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/domeshutter.ui"
+	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/dometimeouts.ui"
 	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/Astrometric.png"
 	chown $app_owner "$TheSkyX_Path/Resources/Common/PlugIns/DomePlugIns/libDomePro.so"
 fi

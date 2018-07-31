@@ -60,7 +60,7 @@
 enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
 enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
-enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO};
+enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING};
 
 enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED, INVALID_COMMAND};
 
@@ -72,7 +72,6 @@ enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, NO_CO
                         };
 
 enum SwitchState { INNACTIVE = 0, ACTIVE};
-enum CalibrationState {NO_CAL, CAL_HOMING, PASSING_HOME, CAL_RE_HOMING, CAL_DONE};
 
 class CDomePro
 {
@@ -98,7 +97,7 @@ public:
     int CloseDomeShutters();
     int abortCurrentCommand();
     int goHome();
-    int calibrate();
+    int learnAzimuthCPR();
 
     // Dome informations
     int getFirmwareVersion(char *version, int strMaxLen);
@@ -121,7 +120,7 @@ public:
     int isParkComplete(bool &complete);
     int isUnparkComplete(bool &complete);
     int isFindHomeComplete(bool &complete);
-    int isCalibratingComplete(bool &complete);
+    int isLearningCPRComplete(bool &complete);
     int isPassingHomeComplete(bool &bComplete);
     
 
@@ -145,7 +144,7 @@ public:
     int getDomeEl(double &dDomeEl);
 
 
-    int getDomeParkAz(double &dAz);
+    int             getDomeParkAz(double &dAz);
 
     int             getDomeShutterStatus(int &nState);
 
@@ -254,6 +253,10 @@ protected:
     int             setDomeParkAzimuth(int nPos);
     int             getDomeParkAzimuth(int &nPos);
     int             calibrateDomeAzimuth(int nPos);
+    int             startDomeAzGaugeRight();
+    int             getDomeAzGaugeRight(int &nSteps);
+    int             startDomeAzGaugeLeft();
+    int             getDomeAzGaugeLeft(int &nSteps);
 
     int             killDomeShutterMovement(void);
 
@@ -269,6 +272,7 @@ protected:
     int             goToDomeShutter2_ADC(int nPos);
     int             getDomeShutter1_AltitudeADC(int &nPos);
     int             getDomeShutter2_AltitudeADC(int &nPos);
+
 
     void            hexdump(const char *inputData, char *outBuffer, int size);
     
@@ -317,7 +321,6 @@ protected:
 
     char            m_hexdumpBuffer[(SERIAL_BUFFER_SIZE*3)+1];
 
-    int             m_nCalibrtionState;
 #ifdef ATCL_DEBUG
     std::string m_sLogfilePath;
     // timestamp for logs

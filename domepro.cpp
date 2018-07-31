@@ -87,13 +87,12 @@ int CDomePro::Connect(const char *pszPort)
 #endif
 
     // 19200 8N1
-    if(m_pSerx->open(pszPort, 19200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1") == 0)
-        m_bIsConnected = true;
-    else
+    nErr = m_pSerx->open(pszPort, 19200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
+    if(nErr) {
         m_bIsConnected = false;
-
-    if(!m_bIsConnected)
-        return ERR_COMMNOLINK;
+        return nErr;
+    }
+    m_bIsConnected = true;
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
@@ -299,27 +298,16 @@ int CDomePro::goHome()
 }
 
 #pragma mark TODO : Calibrate needs rewriting
-int CDomePro::calibrate()
+int CDomePro::learnAzimuthCPR()
 {
     int nErr = DP2_OK;
 
-    m_nCalibrtionState= NO_CAL;
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nErr = setDomeHomeDirection(RIGHT);
-    if(nErr) {
-        return nErr;
-    }
-    // if there is an error during calibration this value is restored.
-    m_nNbStepPerRev_save = m_nNbStepPerRev;
+    // get the number of CPR going right.
+    startDomeAzGaugeRight();
 
-    // home first
-    nErr = goHome();
-    if(nErr) {
-        return nErr;
-    }
-    m_nCalibrtionState = CAL_HOMING;
     m_bCalibrating = true;
     return nErr;
 }
@@ -750,56 +738,36 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
 }
 
 
-int CDomePro::isCalibratingComplete(bool &bComplete)
+int CDomePro::isLearningCPRComplete(bool &bComplete)
 {
     int nErr = DP2_OK;
     bool bStateComplete = false;
+    int nMode;
+    int nSteps;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
-    
-    switch(m_nCalibrtionState) {
-        case CAL_HOMING :
-            nErr = isFindHomeComplete(bStateComplete);
-            if (bStateComplete) {
-                m_nCalibrtionState = PASSING_HOME;
-                nErr |= getDomeAzCPR(m_nCprOvershoot);
-                nErr |= clearDomeAzDiagPosition();
-                nErr |= setDomeRightOn();
-            }
-            break;
 
-        case PASSING_HOME :
-            nErr = isPassingHomeComplete(bStateComplete);
-            if (bStateComplete) {
-                nErr |= killDomeAzimuthMovement();
-                m_nCalibrtionState = CAL_RE_HOMING;
-                nErr |= goHome();
-            }
-            break;
-
-        case CAL_RE_HOMING :
-            nErr = isFindHomeComplete(bStateComplete);
-            if (bStateComplete) {
-                m_nCalibrtionState = CAL_DONE;
-                m_bCalibrating = false;
-                nErr |= getDomeAzDiagPosition(m_nNbStepPerRev);
-                m_nNbStepPerRev += m_nCprOvershoot;
-                nErr |= setDomeAzCPR(m_nNbStepPerRev);
-            }
-            break;
-
-        default:
-            break;
-    }
-    // if there was any error, stop the calibration
+    nErr = getDomeAzMoveMode(nMode);
     if(nErr) {
         killDomeAzimuthMovement();
-        m_nCalibrtionState = NO_CAL;
         m_bCalibrating = false;
         // restore previous value as there was an error
         m_nNbStepPerRev = m_nNbStepPerRev_save;
     }
+
+    if(nMode == GAUGING)
+        return bStateComplete;
+    // Gauging is done. let's read the value
+    nErr = getDomeAzGaugeRight(nSteps);
+    if(nErr) {
+        killDomeAzimuthMovement();
+        m_bCalibrating = false;
+        // restore previous value as there was an error
+        m_nNbStepPerRev = m_nNbStepPerRev_save;
+    }
+    m_nNbStepPerRev = nSteps;
+    bComplete = true;
     return nErr;
 }
 
@@ -1436,6 +1404,9 @@ int CDomePro::getDomeAzMoveMode(int &mode)
     else if(strstr(szResp, "AzimuthTO")) {
         mode = AZ_TO;
     }
+    else if(strstr(szResp, "Gauging")) {
+        mode = GAUGING;
+    }
 
     return nErr;
 }
@@ -1627,6 +1598,69 @@ int CDomePro::calibrateDomeAzimuth(int nPos)
 
     return nErr;
 }
+
+int CDomePro::startDomeAzGaugeRight()
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DSgr;", szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeAzGaugeRight(int &nSteps)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGgr;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nSteps = (int)strtoul(szResp, NULL, 16);
+    if(!nSteps) { // if we get 0x00000000 there was an error
+        // restore old value
+        m_nNbStepPerRev = m_nNbStepPerRev_save;
+        return ERR_CMDFAILED;
+    }
+    m_nNbStepPerRev = nSteps;
+
+    return nErr;
+}
+
+int CDomePro::startDomeAzGaugeLeft()
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DSgl;", szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeAzGaugeLeft(int &nSteps)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGgl;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    nSteps = (int)strtoul(szResp, NULL, 16);
+    if(!nSteps) { // if we get 0x00000000 there was an error
+        // restore old value
+        m_nNbStepPerRev = m_nNbStepPerRev_save;
+        return ERR_CMDFAILED;
+    }
+    m_nNbStepPerRev = nSteps;
+
+    return nErr;
+}
+
 
 
 int CDomePro::killDomeShutterMovement(void)

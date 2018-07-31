@@ -45,13 +45,10 @@
 #endif
 
 #define LOG_BUFFER_SIZE 256
-/*!
-\brief The X2Dome example.
 
-\ingroup Example
+enum DIALOGS {MAIN, SHUTTER, TIMEOUTS, DIAG };
 
-Use this example to write an X2Dome driver.
-*/
+
 class X2Dome: public DomeDriverInterface, public SerialPortParams2Interface, public ModalSettingsDialogInterface, public X2GUIEventInterface
 {
 public:
@@ -85,8 +82,7 @@ public:
 
     virtual int initModalSettingsDialog(void){return 0;}
     virtual int execModalSettingsDialog(void);
-    virtual int doAddDomeProDiag(bool& bPressedOK);
-    
+
 	/*!\name HardwareInfoInterface Implementation
 	See HardwareInfoInterface.*/
 	//@{ 
@@ -154,6 +150,17 @@ private:
 	MutexInterface									*	m_pIOMutex;
 	TickCountInterface								*	m_pTickCount;
 
+    int doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
+
+    int doDomeProShutter(bool& bPressedOK);
+    int doShutterDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
+
+    int doDomeProTimeouts(bool& bPressedOK);
+    int doTimeoutsDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
+
+    int doDomeProDiag(bool& bPressedOK);
+    int doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
+
     void portNameOnToCharPtr(char* pszPort, const int& nMaxSize) const;
 
 
@@ -162,8 +169,8 @@ private:
     CDomePro    m_DomePro;
     bool        m_bHasShutterControl;
     bool        m_bOpenUpperShutterOnly;
-    bool        m_bCalibratingDome;
+    bool        m_bLearningDomeCPR;
     int         m_bBattRequest;
-    bool        m_bDomeProDiagUI_enable;
+    int         m_nCurrentDialog;
 
 };

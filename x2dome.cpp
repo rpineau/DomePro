@@ -25,9 +25,8 @@ X2Dome::X2Dome(const char* pszSelection,
 	m_pTickCount					= pTickCount;
 
 	m_bLinked = false;
-    m_bCalibratingDome = false;
+    m_bLearningDomeCPR = false;
     m_bBattRequest = 0;
-    m_bDomeProDiagUI_enable = false;
 
     m_DomePro.SetSerxPointer(pSerX);
     m_DomePro.setLogger(pLogger);
@@ -144,7 +143,7 @@ int X2Dome::execModalSettingsDialog()
         //
 
         // Az motor
-        dx->setEnabled(CALIBRATE, true);
+        dx->setEnabled(LEARN_AZIMUTH_CPR, true);
         nErr = m_DomePro.getDomeAzCPR(nTmp);
         dx->setPropertyInt(TICK_PER_REV, "value", nTmp);
         dx->setEnabled(ROTATION_COAST, true);
@@ -216,7 +215,7 @@ int X2Dome::execModalSettingsDialog()
     }
     else { // not connected, disable all controls
         // Az motor
-        dx->setEnabled(CALIBRATE, false);
+        dx->setEnabled(LEARN_AZIMUTH_CPR, false);
         dx->setEnabled(TICK_PER_REV, false);
         dx->setEnabled(ROTATION_COAST, false);
         dx->setEnabled(ENCODDER_POLARITY, false);
@@ -243,10 +242,11 @@ int X2Dome::execModalSettingsDialog()
 
     }
 
-    m_bCalibratingDome = false;
+    m_bLearningDomeCPR = false;
     
 
     //Display the user interface
+    m_nCurrentDialog = MAIN;
     if ((nErr = ui->exec(bPressedOK)))
         return nErr;
 
@@ -272,16 +272,38 @@ int X2Dome::execModalSettingsDialog()
 
 void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
-    bool bComplete = false;
-    int nErr;
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
-    char szErrorMessage[LOG_BUFFER_SIZE];
-    bool bPressedOK = false;
-    int nTmp;
-    double dTmp;
 
-    printf("pszEvent : %s\n", pszEvent);
-    printf("m_bDomeProDiagUI_enable : %s\n", m_bDomeProDiagUI_enable ? "true" : "false");
+    switch(m_nCurrentDialog) {
+        case MAIN:
+            doMainDialogEvents(uiex, pszEvent);
+            break;
+        case SHUTTER:
+            doShutterDialogEvents(uiex, pszEvent);
+            break;
+        case TIMEOUTS:
+            doTimeoutsDialogEvents(uiex, pszEvent);
+            break;
+        case DIAG:
+            doDiagDialogEvents(uiex, pszEvent);
+            break;
+
+    }
+
+
+}
+//
+// Main setting ui
+//
+
+int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
+{
+    bool bComplete = false;
+    int nErr = SB_OK;
+    char szErrorMessage[LOG_BUFFER_SIZE];
+    int nTmp;
+    bool bPressedOK = false;
+
+    printf("[doMainDialogEvents] pszEvent : %s\n", pszEvent);
 
     if (!strcmp(pszEvent, "on_pushButtonCancel_clicked"))
         m_DomePro.abortCurrentCommand();
@@ -289,80 +311,155 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     if (!strcmp(pszEvent, "on_timer"))
     {
         if(m_bLinked) {
-            if(m_bCalibratingDome) {
-                // are we still calibrating ?
+            if(m_bLearningDomeCPR) {
+                // are we still learning CPR ?
                 bComplete = false;
-                nErr = m_DomePro.isCalibratingComplete(bComplete);
+                nErr = m_DomePro.isLearningCPRComplete(bComplete);
                 if(nErr) {
-                    uiex->setEnabled(CALIBRATE, true);
+                    uiex->setEnabled(LEARN_AZIMUTH_CPR, true);
                     uiex->setEnabled(BUTTON_OK, true);
-                    snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error calibrating dome : Error %d", nErr);
-                    uiex->messageBox("DomePro Calibrate", szErrorMessage);
-                    m_bCalibratingDome = false;
-                    return;;
+                    snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error learning dome CPR : Error %d", nErr);
+                    uiex->messageBox("DomePro Learn Azimuth CPR", szErrorMessage);
+                    m_bLearningDomeCPR = false;
+                    return nErr;
                 }
-                
+
                 if(!bComplete) {
-                    return;
+                    return nErr;
                 }
-                
-                // enable "ok" and "calibrate"
-                uiex->setEnabled(CALIBRATE, true);
+
+                // enable "ok" and "Lean Azimuth CPR"
+                uiex->setEnabled(LEARN_AZIMUTH_CPR, true);
                 uiex->setEnabled(BUTTON_OK, true);
                 // read step per rev from dome
                 nErr = m_DomePro.getDomeAzCPR(nTmp);
                 uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
-                m_bCalibratingDome = false;
-                
+                m_bLearningDomeCPR = false;
+
             }
         }
     }
 
-    //
-    // main dialog
-    //
-    if (!strcmp(pszEvent, CALIBRATE_CLICKED) && !m_bDomeProDiagUI_enable)
+    if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_CLICKED) )
     {
         if(m_bLinked) {
-            // disable "ok" and "calibrate"
-            uiex->setEnabled(CALIBRATE, false);
+            // disable "ok" and "Lean Azimuth CPR"
+            uiex->setEnabled(LEARN_AZIMUTH_CPR, false);
             uiex->setEnabled(BUTTON_OK, false);
-            m_DomePro.calibrate();
-            m_bCalibratingDome = true;
+            m_DomePro.learnAzimuthCPR();
+            m_bLearningDomeCPR = true;
         }
+    }
+
+    if (!strcmp(pszEvent, SHUTTER_CKICKED))
+    {
+        doDomeProShutter(bPressedOK);
+    }
+
+    if (!strcmp(pszEvent, TIMEOUTS_CKICKED))
+    {
+        doDomeProTimeouts(bPressedOK);
     }
 
     if (!strcmp(pszEvent, DIAG_CKICKED))
     {
-        doAddDomeProDiag(bPressedOK);
+        doDomeProDiag(bPressedOK);
     }
 
-    //
-    // diag ui
-    //
-    if (!strcmp(pszEvent, DIAG_OK_CLICKED) && m_bDomeProDiagUI_enable) {
-    }
-
-    if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) && m_bDomeProDiagUI_enable)
-    {
-    }
-
-    if (!strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED) && m_bDomeProDiagUI_enable)
-    {
-    }
-
-    if (!strcmp(pszEvent, CLEAR_RFLINK_ERRORS_CLICKED) && m_bDomeProDiagUI_enable)
-    {
-    }
-
+    return nErr;
 }
 
-int X2Dome::doAddDomeProDiag(bool& bPressedOK)
+//
+// Shutter settings UI
+//
+int X2Dome::doDomeProShutter(bool& bPressedOK)
 {
     int nErr = SB_OK;
     X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
-    X2GUIInterface*					ui = uiutil.X2UI();
-    X2GUIExchangeInterface*			dx = NULL;
+    X2GUIInterface*                    ui = uiutil.X2UI();
+    X2GUIExchangeInterface*            dx = NULL;
+
+    bPressedOK = false;
+    if (NULL == ui)
+        return ERR_POINTER;
+    nErr = ui->loadUserInterface("domeshutter.ui", deviceType(), m_nPrivateISIndex);
+    if (nErr)
+        return nErr;
+
+    dx = uiutil.X2DX();
+    if (NULL == dx)
+        return ERR_POINTER;
+
+    m_nCurrentDialog = SHUTTER;
+
+    nErr = ui->exec(bPressedOK);
+    if (nErr )
+        return nErr;
+
+    m_nCurrentDialog = MAIN;
+    return nErr;
+
+}
+
+//
+// Shutter settings ui events
+//
+int X2Dome::doShutterDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
+{
+    int nErr = SB_OK;
+    printf("[doShutterDialogEvents] pszEvent : %s\n", pszEvent);
+
+    return nErr;
+}
+
+//
+// Dome timout and automatic closure UI
+//
+int X2Dome::doDomeProTimeouts(bool& bPressedOK)
+{
+    int nErr = SB_OK;
+    X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
+    X2GUIInterface*                    ui = uiutil.X2UI();
+    X2GUIExchangeInterface*            dx = NULL;
+
+    bPressedOK = false;
+    if (NULL == ui)
+        return ERR_POINTER;
+    nErr = ui->loadUserInterface("dometimeouts.ui", deviceType(), m_nPrivateISIndex);
+    if (nErr)
+        return nErr;
+
+    dx = uiutil.X2DX();
+    if (NULL == dx)
+        return ERR_POINTER;
+
+    m_nCurrentDialog = TIMEOUTS;
+
+    nErr = ui->exec(bPressedOK);
+    if (nErr )
+        return nErr;
+
+    m_nCurrentDialog = MAIN;
+    return nErr;
+
+}
+//
+// Timeouts ui events
+//
+int X2Dome::doTimeoutsDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
+{
+    int nErr = SB_OK;
+    printf("[doTimeoutsDialogEvents] pszEvent : %s\n", pszEvent);
+
+    return nErr;
+}
+
+int X2Dome::doDomeProDiag(bool& bPressedOK)
+{
+    int nErr = SB_OK;
+    X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
+    X2GUIInterface*                    ui = uiutil.X2UI();
+    X2GUIExchangeInterface*            dx = NULL;
 
     bPressedOK = false;
     if (NULL == ui)
@@ -375,15 +472,39 @@ int X2Dome::doAddDomeProDiag(bool& bPressedOK)
     if (NULL == dx)
         return ERR_POINTER;
 
-    m_bDomeProDiagUI_enable = true;
+    m_nCurrentDialog = DIAG;
 
     nErr = ui->exec(bPressedOK);
     if (nErr )
         return nErr;
 
-    m_bDomeProDiagUI_enable = false;
+    m_nCurrentDialog = MAIN;
     return nErr;
 }
+
+//
+// diag ui events
+//
+int X2Dome::doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
+{
+    int nErr = SB_OK;
+
+    printf("[doDiagDialogEvents] pszEvent : %s\n", pszEvent);
+
+    if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) ) {
+    }
+
+    if (!strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED)) {
+    }
+
+    if (!strcmp(pszEvent, CLEAR_RFLINK_ERRORS_CLICKED)) {
+    }
+
+    return nErr;
+}
+
+
+
 
 //
 //HardwareInfoInterface
