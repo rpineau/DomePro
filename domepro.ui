@@ -6,20 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>584</width>
-    <height>540</height>
+    <width>600</width>
+    <height>550</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>584</width>
-    <height>540</height>
+    <width>600</width>
+    <height>550</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>584</width>
-    <height>540</height>
+    <width>600</width>
+    <height>550</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -52,10 +52,10 @@
      <widget class="QGroupBox" name="MaxDomeIIParams">
       <property name="geometry">
        <rect>
-        <x>16</x>
+        <x>8</x>
         <y>160</y>
-        <width>528</width>
-        <height>288</height>
+        <width>560</width>
+        <height>280</height>
        </rect>
       </property>
       <property name="title">
@@ -64,10 +64,10 @@
       <widget class="QGroupBox" name="groupBox_2">
        <property name="geometry">
         <rect>
-         <x>272</x>
+         <x>288</x>
          <y>24</y>
-         <width>248</width>
-         <height>152</height>
+         <width>264</width>
+         <height>216</height>
         </rect>
        </property>
        <property name="title">
@@ -76,34 +76,34 @@
        <widget class="QPushButton" name="pushButton">
         <property name="geometry">
          <rect>
-          <x>16</x>
-          <y>24</y>
-          <width>216</width>
-          <height>26</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Learn azimuth count per rev</string>
-        </property>
-       </widget>
-       <widget class="QCheckBox" name="checkBox_2">
-        <property name="geometry">
-         <rect>
-          <x>16</x>
-          <y>120</y>
+          <x>8</x>
+          <y>96</y>
           <width>136</width>
           <height>24</height>
          </rect>
         </property>
         <property name="text">
-         <string>Encoder Polarity</string>
+         <string>Gauge CPR right</string>
+        </property>
+       </widget>
+       <widget class="QCheckBox" name="checkBox_2">
+        <property name="geometry">
+         <rect>
+          <x>8</x>
+          <y>160</y>
+          <width>248</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Encoder Polarity (checked = positive)</string>
         </property>
        </widget>
        <widget class="QLabel" name="label_3">
         <property name="geometry">
          <rect>
-          <x>16</x>
-          <y>88</y>
+          <x>8</x>
+          <y>64</y>
           <width>136</width>
           <height>24</height>
          </rect>
@@ -115,8 +115,8 @@
        <widget class="QLabel" name="label">
         <property name="geometry">
          <rect>
-          <x>16</x>
-          <y>56</y>
+          <x>8</x>
+          <y>32</y>
           <width>136</width>
           <height>24</height>
          </rect>
@@ -129,7 +129,7 @@
         <property name="geometry">
          <rect>
           <x>152</x>
-          <y>56</y>
+          <y>32</y>
           <width>80</width>
           <height>24</height>
          </rect>
@@ -145,7 +145,7 @@
         <property name="geometry">
          <rect>
           <x>152</x>
-          <y>88</y>
+          <y>64</y>
           <width>80</width>
           <height>24</height>
          </rect>
@@ -160,13 +160,65 @@
          <double>360.000000000000000</double>
         </property>
        </widget>
+       <widget class="QPushButton" name="pushButton_5">
+        <property name="geometry">
+         <rect>
+          <x>8</x>
+          <y>128</y>
+          <width>136</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Gauge CPR left</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_5">
+        <property name="geometry">
+         <rect>
+          <x>152</x>
+          <y>96</y>
+          <width>96</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>: R_Value</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_6">
+        <property name="geometry">
+         <rect>
+          <x>152</x>
+          <y>128</y>
+          <width>96</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>: L_Value</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pushButton_6">
+        <property name="geometry">
+         <rect>
+          <x>96</x>
+          <y>184</y>
+          <width>152</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Set CPR from Gauged</string>
+        </property>
+       </widget>
       </widget>
       <widget class="QGroupBox" name="groupBox">
        <property name="geometry">
         <rect>
          <x>8</x>
          <y>24</y>
-         <width>256</width>
+         <width>264</width>
          <height>96</height>
         </rect>
        </property>
@@ -178,12 +230,12 @@
          <rect>
           <x>8</x>
           <y>24</y>
-          <width>85</width>
+          <width>232</width>
           <height>24</height>
          </rect>
         </property>
         <property name="text">
-         <string>Polarity</string>
+         <string>Polarity (checked = positive)</string>
         </property>
        </widget>
        <widget class="QLabel" name="label_14">
@@ -231,7 +283,7 @@
         <rect>
          <x>8</x>
          <y>136</y>
-         <width>256</width>
+         <width>264</width>
          <height>136</height>
         </rect>
        </property>
@@ -254,7 +306,7 @@
        <widget class="QDoubleSpinBox" name="homePosition">
         <property name="geometry">
          <rect>
-          <x>160</x>
+          <x>168</x>
           <y>64</y>
           <width>80</width>
           <height>24</height>
@@ -283,20 +335,20 @@
        <widget class="QComboBox" name="comboBox_3">
         <property name="geometry">
          <rect>
-          <x>160</x>
+          <x>128</x>
           <y>32</y>
-          <width>80</width>
-          <height>26</height>
+          <width>120</width>
+          <height>24</height>
          </rect>
         </property>
         <item>
          <property name="text">
-          <string>East</string>
+          <string>Moving Left</string>
          </property>
         </item>
         <item>
          <property name="text">
-          <string>West</string>
+          <string>Moving Right</string>
          </property>
         </item>
        </widget>
@@ -316,7 +368,7 @@
        <widget class="QDoubleSpinBox" name="parkPosition">
         <property name="geometry">
          <rect>
-          <x>160</x>
+          <x>168</x>
           <y>96</y>
           <width>80</width>
           <height>24</height>
@@ -330,50 +382,11 @@
         </property>
        </widget>
       </widget>
-      <widget class="QPushButton" name="pushButton_3">
-       <property name="geometry">
-        <rect>
-         <x>296</x>
-         <y>184</y>
-         <width>200</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Dome Shutter/Roof seetings</string>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_4">
-       <property name="geometry">
-        <rect>
-         <x>296</x>
-         <y>216</y>
-         <width>200</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Timeouts &amp; automatic closure</string>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_2">
-       <property name="geometry">
-        <rect>
-         <x>296</x>
-         <y>248</y>
-         <width>200</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Diagnostic data</string>
-       </property>
-      </widget>
      </widget>
      <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>144</x>
+        <x>152</x>
         <y>8</y>
         <width>264</width>
         <height>145</height>
@@ -383,7 +396,7 @@
        <item row="2" column="0" alignment="Qt::AlignHCenter">
         <widget class="QLabel" name="label_4">
          <property name="text">
-          <string>© RTI-Zone.org, 2017</string>
+          <string>© RTI-Zone.org, 2018</string>
          </property>
         </widget>
        </item>
@@ -408,8 +421,8 @@
      <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
-        <x>320</x>
-        <y>464</y>
+        <x>344</x>
+        <y>480</y>
         <width>213</width>
         <height>40</height>
        </rect>
@@ -453,9 +466,51 @@
        </item>
       </layout>
      </widget>
+     <widget class="QPushButton" name="pushButton_2">
+      <property name="geometry">
+       <rect>
+        <x>336</x>
+        <y>448</y>
+        <width>200</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Diagnostic data</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_3">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>448</y>
+        <width>216</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Dome Shutter/Roof seetings</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_4">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>480</y>
+        <width>216</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Timeouts and automatic closure</string>
+      </property>
+     </widget>
      <zorder>layoutWidget</zorder>
      <zorder>layoutWidget</zorder>
      <zorder>MaxDomeIIParams</zorder>
+     <zorder>pushButton_2</zorder>
+     <zorder>pushButton_3</zorder>
+     <zorder>pushButton_4</zorder>
     </widget>
    </item>
   </layout>

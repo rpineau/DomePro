@@ -5,13 +5,18 @@
 // ----------
 // Dome Az
 // Az motor
-#define MOTOR_POLARITY	"checkBox"
+#define MOTOR_POLARITY	        "checkBox"
 #define OVER_CURRENT_PROTECTION "overCurrentProtection"
 // encoder
-#define LEARN_AZIMUTH_CPR   "pushButton"
-#define TICK_PER_REV	"ticksPerRev"
-#define ROTATION_COAST	"doubleSpinBox"
-#define ENCODDER_POLARITY   "checkBox_2"
+#define TICK_PER_REV            "ticksPerRev"
+#define ROTATION_COAST          "doubleSpinBox"
+#define LEARN_AZIMUTH_CPR_RIGHT "pushButton"
+#define R_CPR_VALUE             "label_5"
+#define LEARN_AZIMUTH_CPR_LEFT  "pushButton_5"
+#define L_CPR_VALUE             "label_6"
+#define ENCODDER_POLARITY       "checkBox_2"
+#define SET_AZIMUTH_CPR         "pushButton_6"
+
 // Homing
 #define HOMING_DIR		"comboBox_3"
 #define HOME_POS		"homePosition"
@@ -22,12 +27,14 @@
 #define DIAG_BUTTON     "pushButton_2"
 
 // Cancel/Ok
-#define BUTTON_CANCEL    "pushButtonCancel"
+#define BUTTON_CANCEL   "pushButtonCancel"
 #define BUTTON_OK       "pushButtonOK"
 //
 // Main settings dialog Events
 //
-#define LEARN_AZIMUTH_CPR_CLICKED   "on_pushButton_clicked"
+#define LEARN_AZIMUTH_CPR_RIGHT_CLICKED "on_pushButton_clicked"
+#define LEARN_AZIMUTH_CPR_LEFT_CLICKED  "on_pushButton_5_clicked"
+#define SET_CPR_FROM_GAUGED             "on_pushButton_6_clicked"
 #define DIAG_CKICKED        "on_pushButton_2_clicked"
 #define SHUTTER_CKICKED     "on_pushButton_3_clicked"
 #define TIMEOUTS_CKICKED    "on_pushButton_4_clicked"

@@ -60,7 +60,7 @@
 enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
 enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
-enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING};
+enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING, PARKING, NONE};
 
 enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED, INVALID_COMMAND};
 
@@ -97,7 +97,8 @@ public:
     int CloseDomeShutters();
     int abortCurrentCommand();
     int goHome();
-    int learnAzimuthCPR();
+    int learnAzimuthCprRight();
+    int learnAzimuthCprLeft();
 
     // Dome informations
     int getFirmwareVersion(char *version, int strMaxLen);
@@ -129,7 +130,8 @@ public:
     int setHomeAz(double dAz);
 
     int getDomeAzCoast(double &dAz);
-
+    int setDomeAzCoast(double dAz);
+    
     int setParkAz(double dAz);
 
     double getCurrentAz();
@@ -150,6 +152,8 @@ public:
 
     int             setDomeAzCPR(int nValue);
     int             getDomeAzCPR(int &nValue);
+    int             getLeftCPR();
+    int             getRightCPR();
 
     // controller low level data
     int             getDomeSupplyVoltageAzimuthL(double &dVolts);
@@ -199,6 +203,12 @@ public:
     int             getDomeComErr(void);
     int             clearDomeComErr(void);
     //
+    int             setDomeHomeDirection(int nDir);
+    int             getDomeHomeDirection(int &nDir);
+
+    int             setDomeAzimuthOCP_Limit(double dLimit);
+    int             getDomeAzimuthOCP_Limit(double &dLimit);
+
     int             setDomeShutterOpenFirst(int nShutter);
     int             getDomeShutterOpenFirst(int &nShutter);
     int             setDomeShutterCloseFirst(int nShutter);
@@ -242,8 +252,6 @@ protected:
     int             clearDomeAzDiagPosition(void);
     int             getDomeAzMoveMode(int &mode);
     int             getDomeLimits(void);
-    int             setDomeHomeDirection(int nDir);
-    int             GetDomeHomeDirection(int &nDir);
 
     int             setDomeHomeAzimuth(int nPos);
     int             getDomeHomeAzimuth(int &nPos);
@@ -287,7 +295,10 @@ protected:
 
     int             m_nNbStepPerRev;
     int             m_nNbStepPerRev_save;
-    int             m_nCprOvershoot;
+    int             m_nRightCPR;
+    int             m_nLeftCPR;
+    int             m_nLearning;
+
     double          m_dHomeAz;
 
     double          m_dParkAz;

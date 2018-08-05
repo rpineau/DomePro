@@ -7,7 +7,7 @@
 X2Dome::X2Dome(const char* pszSelection, 
 							 const int& nISIndex,
 					SerXInterface*						pSerX,
-					TheSkyXFacadeForDriversInterface*	pTheSkyXForMounts,
+					TheSkyXFacadeForDriversInterface*	pTheSkyXFacadeForDriversInterface,
 					SleeperInterface*					pSleeper,
 					BasicIniUtilInterface*			pIniUtil,
 					LoggerInterface*					pLogger,
@@ -17,7 +17,7 @@ X2Dome::X2Dome(const char* pszSelection,
 
     m_nPrivateISIndex				= nISIndex;
 	m_pSerX							= pSerX;
-	m_pTheSkyXForMounts				= pTheSkyXForMounts;
+	m_pTheSkyXFacadeForDriversInterface = pTheSkyXFacadeForDriversInterface;
 	m_pSleeper						= pSleeper;
 	m_pIniUtil						= pIniUtil;
 	m_pLogger						= pLogger;	
@@ -25,7 +25,7 @@ X2Dome::X2Dome(const char* pszSelection,
 	m_pTickCount					= pTickCount;
 
 	m_bLinked = false;
-    m_bLearningDomeCPR = false;
+    m_nLearningDomeCPR = NONE;
     m_bBattRequest = 0;
 
     m_DomePro.SetSerxPointer(pSerX);
@@ -33,8 +33,6 @@ X2Dome::X2Dome(const char* pszSelection,
 
     if (m_pIniUtil)
     {   
-        m_DomePro.setHomeAz( m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_HOME_AZ, 180) );
-        m_DomePro.setParkAz( m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_PARK_AZ, 180) );
     }
 }
 
@@ -43,8 +41,8 @@ X2Dome::~X2Dome()
 {
 	if (m_pSerX)
 		delete m_pSerX;
-	if (m_pTheSkyXForMounts)
-		delete m_pTheSkyXForMounts;
+	if (m_pTheSkyXFacadeForDriversInterface)
+		delete m_pTheSkyXFacadeForDriversInterface;
 	if (m_pSleeper)
 		delete m_pSleeper;
 	if (m_pIniUtil)
@@ -117,11 +115,9 @@ int X2Dome::execModalSettingsDialog()
     X2GUIExchangeInterface*			dx = NULL;//Comes after ui is loaded
     bool bPressedOK = false;
     char szTmpBuf[SERIAL_BUFFER_SIZE];
-    double dHomeAz;
-    double dParkAz;
-    int nTmp;
-    double dTmp;
-    bool bTmp;
+    int nTmp = 0;
+    double dTmp = 0;
+    bool bTmp = false;
 
     if (NULL == ui)
         return ERR_POINTER;
@@ -134,115 +130,88 @@ int X2Dome::execModalSettingsDialog()
 
 
     memset(szTmpBuf,0,SERIAL_BUFFER_SIZE);
+
     X2MutexLocker ml(GetMutex());
 
     // set controls state depending on the connection state
     if(m_bLinked) {
-        //
-        // Dome Az
-        //
+        // Az Motors
+        dx->setEnabled(MOTOR_POLARITY, true);
+        nErr = m_DomePro.getDomeAzMotorPolarity(nTmp);
+        dx->setChecked(MOTOR_POLARITY,nTmp==POSITIVE?true:false);
 
-        // Az motor
-        dx->setEnabled(LEARN_AZIMUTH_CPR, true);
+        dx->setEnabled(OVER_CURRENT_PROTECTION, true);
+        m_DomePro.getDomeAzimuthOCP_Limit(dTmp);
+        dx->setPropertyDouble(OVER_CURRENT_PROTECTION, "value", dTmp);
+
+        // Az Encoders
+        dx->setEnabled(TICK_PER_REV, true);
         nErr = m_DomePro.getDomeAzCPR(nTmp);
         dx->setPropertyInt(TICK_PER_REV, "value", nTmp);
+
         dx->setEnabled(ROTATION_COAST, true);
         nErr = m_DomePro.getDomeAzCoast(dTmp);
         dx->setPropertyDouble(ROTATION_COAST, "value", dTmp);
+
+        dx->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, true);
+        dx->setEnabled(LEARN_AZIMUTH_CPR_LEFT, true);
+        dx->setPropertyString(L_CPR_VALUE, "text", ": not learned");
+        dx->setPropertyString(R_CPR_VALUE, "text", ": not learned");
+
         dx->setEnabled(ENCODDER_POLARITY, true);
         nErr = m_DomePro.getDomeAzEncoderPolarity(nTmp);
         dx->setPropertyDouble(ENCODDER_POLARITY, "value", dTmp);
+
+        dx->setEnabled(SET_AZIMUTH_CPR, true);
+
         // Homing
         dx->setEnabled(HOMING_DIR, true); // no corresponding function, need to ping Chris
+        nErr = m_DomePro.getDomeHomeDirection(nTmp);
+        printf("Homing direction = %d\n", nTmp);
+        dx->setCurrentIndex(HOMING_DIR, nTmp-1);
+
         dx->setEnabled(HOME_POS, true);
         nErr = m_DomePro.getDomeHomeAz(dTmp);
         dx->setPropertyDouble(HOME_POS, "value", dTmp);
+
         dx->setEnabled(PARK_POS, true);
         nErr = m_DomePro.getDomeParkAz(dTmp);
         dx->setPropertyDouble(PARK_POS, "value", dTmp);
-        //
-        // Dome Shutter / Roof
-        //
-        m_DomePro.getModel(szTmpBuf, SERIAL_BUFFER_SIZE);
-        dx->setPropertyString(DOMEPRO_MODEL, "text", szTmpBuf);
-        // sequencing
-        if(m_DomePro.hasShutterUnit()) {
-            dx->setEnabled(SINGLE_SHUTTER, true);
-            m_DomePro.getDomeSingleShutterMode(bTmp);
-            if(bTmp) {
-                dx->setEnabled(OPEN_FIRST, false);
-                dx->setEnabled(CLOSE_FIRST, false);
-                dx->setEnabled(INHIBIT_SIMULT, false);
 
-            }
-            else { // 2 shutters
-                dx->setEnabled(OPEN_FIRST, true);
-                m_DomePro.getDomeShutterOpenFirst(nTmp);
-                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
-                dx->setEnabled(CLOSE_FIRST, true);
-                m_DomePro.getDomeShutterCloseFirst(nTmp);
-                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
-
-                dx->setEnabled(INHIBIT_SIMULT, true); // no corresponding function, need to ping Chris
-            }
-        }
-        else { // no shutter unit
-            dx->setChecked(SINGLE_SHUTTER,false);
-            dx->setEnabled(OPEN_FIRST, false);
-            dx->setEnabled(CLOSE_FIRST, false);
-            dx->setEnabled(INHIBIT_SIMULT, false);
-        }
-        //
-        // Dome timoute and automatic closure
-        //
-        // Az timout
-        dx->setEnabled(AZ_TIMEOUT_EN, true);
-        m_DomePro.getDomeAzimuthTimeOutEnabled(bTmp);
-        if(bTmp) {
-            dx->setChecked(AZ_TIMEOUT_EN,true);
-            dx->setEnabled(AZ_TIMEOUT_VAL, true);
-            m_DomePro.getDomeAzimuthTimeOut(nTmp);
-            dx->setPropertyInt(AZ_TIMEOUT_VAL, "value", nTmp);
-        }
-        else{
-            dx->setChecked(AZ_TIMEOUT_EN,false);
-            dx->setEnabled(AZ_TIMEOUT_VAL, false);
-        }
-
-        dx->setEnabled(TICK_PER_REV, true);
-
+        dx->setEnabled(SHUTTER_BUTTON, true);
+        dx->setEnabled(TIMEOUTS_BUTTON, true);
         dx->setEnabled(DIAG_BUTTON, true);
+
     }
     else { // not connected, disable all controls
         // Az motor
-        dx->setEnabled(LEARN_AZIMUTH_CPR, false);
+        dx->setEnabled(MOTOR_POLARITY, false);
+        dx->setEnabled(OVER_CURRENT_PROTECTION, false);
+
+        // Az Encoders
         dx->setEnabled(TICK_PER_REV, false);
         dx->setEnabled(ROTATION_COAST, false);
+
+        dx->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, false);
+        dx->setEnabled(LEARN_AZIMUTH_CPR_LEFT, false);
+        dx->setPropertyString(L_CPR_VALUE, "text", ": --");
+        dx->setPropertyString(R_CPR_VALUE, "text", ": --");
+
         dx->setEnabled(ENCODDER_POLARITY, false);
+        dx->setEnabled(SET_AZIMUTH_CPR, false);
+
         // Homing
         dx->setEnabled(HOMING_DIR, false);
         dx->setEnabled(HOME_POS, false);
         dx->setEnabled(PARK_POS, false);
-        // Dome Shutter / Roof
-        dx->setPropertyString(DOMEPRO_MODEL, "text", "");
-        // sequencing
-        dx->setEnabled(SINGLE_SHUTTER, false);
-        dx->setEnabled(OPEN_FIRST, false);
-        dx->setEnabled(CLOSE_FIRST, false);
-        dx->setEnabled(INHIBIT_SIMULT, false);
-        
-        dx->setEnabled(AZ_TIMEOUT_EN, false);
-        dx->setEnabled(AZ_TIMEOUT_VAL, false);
 
-        dx->setEnabled(TICK_PER_REV, false);
-        dx->setEnabled(TICK_PER_REV, false);
-        dx->setEnabled(TICK_PER_REV, false);
-
+        dx->setEnabled(SHUTTER_BUTTON, false);
+        dx->setEnabled(TIMEOUTS_BUTTON, false);
         dx->setEnabled(DIAG_BUTTON, false);
 
     }
 
-    m_bLearningDomeCPR = false;
+    m_nLearningDomeCPR = NONE;
     
 
     //Display the user interface
@@ -253,18 +222,36 @@ int X2Dome::execModalSettingsDialog()
     //Retreive values from the user interface
     if (bPressedOK)
     {
-        dx->propertyDouble(HOME_POS, "value", dHomeAz);
-        dx->propertyDouble(PARK_POS, "value", dParkAz);
-
         if(m_bLinked)
         {
-            m_DomePro.setHomeAz(dHomeAz);
-            m_DomePro.setParkAz(dParkAz);
-        }
+            // read all controls and set new values
+            // Az Motor
+            bTmp = dx->isChecked(MOTOR_POLARITY);
+            m_DomePro.setDomeAzMotorPolarity(bTmp?POSITIVE:NEGATIVE);
 
-        // save the values to persistent storage
-        nErr |= m_pIniUtil->writeDouble(PARENT_KEY, CHILD_KEY_HOME_AZ, dHomeAz);
-        nErr |= m_pIniUtil->writeDouble(PARENT_KEY, CHILD_KEY_PARK_AZ, dParkAz);
+            dx->propertyDouble(OVER_CURRENT_PROTECTION, "value", dTmp);
+            m_DomePro.setDomeAzimuthOCP_Limit(dTmp);
+
+            // Az Encoders
+            dx->propertyInt(TICK_PER_REV, "value", nTmp);
+            m_DomePro.setDomeAzCPR(nTmp);
+
+            dx->propertyDouble(ROTATION_COAST, "value", dTmp);
+            m_DomePro.setDomeAzCoast(dTmp);
+
+            bTmp = dx->isChecked(ENCODDER_POLARITY);
+            m_DomePro.setDomeAzEncoderPolarity(bTmp?POSITIVE:NEGATIVE);
+
+            // Homing
+            nTmp = dx->currentIndex(HOMING_DIR);
+            m_DomePro.setDomeHomeDirection(nTmp+1);
+
+            dx->propertyDouble(HOME_POS, "value", dTmp);
+            m_DomePro.setHomeAz(dTmp);
+
+            dx->propertyDouble(PARK_POS, "value", dTmp);
+            m_DomePro.setParkAz(dTmp);
+        }
     }
     return nErr;
 
@@ -300,27 +287,30 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     bool bComplete = false;
     int nErr = SB_OK;
     char szErrorMessage[LOG_BUFFER_SIZE];
-    int nTmp;
+    char szTmpBuf[SERIAL_BUFFER_SIZE];
+
+    int nTmp, nTmp2;
     bool bPressedOK = false;
 
     printf("[doMainDialogEvents] pszEvent : %s\n", pszEvent);
 
-    if (!strcmp(pszEvent, "on_pushButtonCancel_clicked"))
+    if (!strcmp(pszEvent, "on_pushButtonCancel_clicked") && m_nLearningDomeCPR != NONE)
         m_DomePro.abortCurrentCommand();
 
     if (!strcmp(pszEvent, "on_timer"))
     {
         if(m_bLinked) {
-            if(m_bLearningDomeCPR) {
+            if(m_nLearningDomeCPR != NONE) {
                 // are we still learning CPR ?
                 bComplete = false;
                 nErr = m_DomePro.isLearningCPRComplete(bComplete);
                 if(nErr) {
-                    uiex->setEnabled(LEARN_AZIMUTH_CPR, true);
+                    uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, true);
+                    uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, true);
                     uiex->setEnabled(BUTTON_OK, true);
                     snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error learning dome CPR : Error %d", nErr);
-                    uiex->messageBox("DomePro Learn Azimuth CPR", szErrorMessage);
-                    m_bLearningDomeCPR = false;
+                    uiex->messageBox("DomePro Learn CPR", szErrorMessage);
+                    m_nLearningDomeCPR = NONE;
                     return nErr;
                 }
 
@@ -329,25 +319,76 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
                 }
 
                 // enable "ok" and "Lean Azimuth CPR"
-                uiex->setEnabled(LEARN_AZIMUTH_CPR, true);
+                uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, true);
+                uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, true);
                 uiex->setEnabled(BUTTON_OK, true);
-                // read step per rev from dome
-                nErr = m_DomePro.getDomeAzCPR(nTmp);
-                uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
-                m_bLearningDomeCPR = false;
+                // read guaged step per rev from dome
+                switch (m_nLearningDomeCPR) {
+                    case LEFT:
+                        nTmp = m_DomePro.getLeftCPR();
+                        snprintf(szTmpBuf, SERIAL_BUFFER_SIZE, "%d", nTmp);
+                        uiex->setPropertyString(L_CPR_VALUE, "text", szTmpBuf);
+                        break;
+
+                    case RIGHT:
+                        nTmp = m_DomePro.getRightCPR();
+                        snprintf(szTmpBuf, SERIAL_BUFFER_SIZE, "%d", nTmp);
+                        uiex->setPropertyString(R_CPR_VALUE, "text", szTmpBuf);
+                        break;
+                    default:
+                        break;
+                }
+                m_nLearningDomeCPR = NONE;
 
             }
         }
     }
 
-    if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_CLICKED) )
+    if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_RIGHT_CLICKED) )
     {
         if(m_bLinked) {
             // disable "ok" and "Lean Azimuth CPR"
-            uiex->setEnabled(LEARN_AZIMUTH_CPR, false);
+            uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, false);
+            uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, false);
             uiex->setEnabled(BUTTON_OK, false);
-            m_DomePro.learnAzimuthCPR();
-            m_bLearningDomeCPR = true;
+            m_DomePro.learnAzimuthCprRight();
+            m_nLearningDomeCPR = RIGHT;
+        }
+    }
+
+    if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_LEFT_CLICKED) )
+    {
+        if(m_bLinked) {
+            // disable "ok" and "Lean Azimuth CPR"
+            uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, false);
+            uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, false);
+            uiex->setEnabled(BUTTON_OK, false);
+            m_DomePro.learnAzimuthCprLeft();
+            m_nLearningDomeCPR = LEFT;
+        }
+    }
+
+    if (!strcmp(pszEvent, SET_CPR_FROM_GAUGED) )
+    {
+        if(m_bLinked) {
+            nTmp = m_DomePro.getRightCPR();
+            if(!nTmp) {
+                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , right value can't be 0");
+                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+            }
+
+            nTmp2 = m_DomePro.getLeftCPR();
+            if(!nTmp) {
+                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , left value can't be 0");
+                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+            }
+            nTmp =  (int)floor( 0.5 +(nTmp + nTmp2)/2);
+            nErr = m_DomePro.setDomeAzCPR(nTmp);
+            if(nErr) {
+                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR : Error %d", nErr);
+                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+            }
+            uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
         }
     }
 
@@ -375,6 +416,10 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
 int X2Dome::doDomeProShutter(bool& bPressedOK)
 {
     int nErr = SB_OK;
+    char szTmpBuf[SERIAL_BUFFER_SIZE];
+    bool bTmp;
+    int nTmp;
+
     X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
     X2GUIInterface*                    ui = uiutil.X2UI();
     X2GUIExchangeInterface*            dx = NULL;
@@ -391,6 +436,49 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
         return ERR_POINTER;
 
     m_nCurrentDialog = SHUTTER;
+    // sequencing
+    if(m_bLinked) {
+        dx->setEnabled(SINGLE_SHUTTER, true);
+        dx->setEnabled(OPEN_FIRST, true);
+        dx->setEnabled(CLOSE_FIRST, true);
+        dx->setEnabled(INHIBIT_SIMULT, true);
+        m_DomePro.getModel(szTmpBuf, SERIAL_BUFFER_SIZE);
+        dx->setPropertyString(DOMEPRO_MODEL, "text", szTmpBuf);
+        // sequencing
+        if(m_DomePro.hasShutterUnit()) {
+            dx->setEnabled(SINGLE_SHUTTER, true);
+            m_DomePro.getDomeSingleShutterMode(bTmp);
+            if(bTmp) {
+                dx->setEnabled(OPEN_FIRST, false);
+                dx->setEnabled(CLOSE_FIRST, false);
+                dx->setEnabled(INHIBIT_SIMULT, false);
+
+            }
+            else { // 2 shutters
+                dx->setEnabled(OPEN_FIRST, true);
+                m_DomePro.getDomeShutterOpenFirst(nTmp);
+                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
+                dx->setEnabled(CLOSE_FIRST, true);
+                m_DomePro.getDomeShutterCloseFirst(nTmp);
+                dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
+
+                dx->setEnabled(INHIBIT_SIMULT, true); // no corresponding function, need to ping Chris
+            }
+        }
+        else { // no shutter unit
+            dx->setChecked(SINGLE_SHUTTER,false);
+            dx->setEnabled(OPEN_FIRST, false);
+            dx->setEnabled(CLOSE_FIRST, false);
+            dx->setEnabled(INHIBIT_SIMULT, false);
+            dx->setPropertyString(DOMEPRO_MODEL, "text", "");
+        }
+
+    } else {
+        dx->setEnabled(SINGLE_SHUTTER, false);
+        dx->setEnabled(OPEN_FIRST, false);
+        dx->setEnabled(CLOSE_FIRST, false);
+        dx->setEnabled(INHIBIT_SIMULT, false);
+    }
 
     nErr = ui->exec(bPressedOK);
     if (nErr )
@@ -418,6 +506,10 @@ int X2Dome::doShutterDialogEvents(X2GUIExchangeInterface* uiex, const char* pszE
 int X2Dome::doDomeProTimeouts(bool& bPressedOK)
 {
     int nErr = SB_OK;
+    char szTmpBuf[SERIAL_BUFFER_SIZE];
+    int nTmp;
+    bool bTmp;
+
     X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
     X2GUIInterface*                    ui = uiutil.X2UI();
     X2GUIExchangeInterface*            dx = NULL;
@@ -434,6 +526,27 @@ int X2Dome::doDomeProTimeouts(bool& bPressedOK)
         return ERR_POINTER;
 
     m_nCurrentDialog = TIMEOUTS;
+    if(m_bLinked) {
+        dx->setEnabled(AZ_TIMEOUT_EN, true);
+        dx->setEnabled(AZ_TIMEOUT_VAL, true);
+        // Az timout
+        dx->setEnabled(AZ_TIMEOUT_EN, true);
+        m_DomePro.getDomeAzimuthTimeOutEnabled(bTmp);
+        if(bTmp) {
+            dx->setChecked(AZ_TIMEOUT_EN,true);
+            dx->setEnabled(AZ_TIMEOUT_VAL, true);
+            m_DomePro.getDomeAzimuthTimeOut(nTmp);
+            dx->setPropertyInt(AZ_TIMEOUT_VAL, "value", nTmp);
+        }
+        else{
+            dx->setChecked(AZ_TIMEOUT_EN,false);
+            dx->setEnabled(AZ_TIMEOUT_VAL, false);
+        }
+
+    } else {
+        dx->setEnabled(AZ_TIMEOUT_EN, false);
+        dx->setEnabled(AZ_TIMEOUT_VAL, false);
+    }
 
     nErr = ui->exec(bPressedOK);
     if (nErr )
@@ -528,6 +641,7 @@ void X2Dome::deviceInfoDetailedDescription(BasicStringInterface& str) const
 
  void X2Dome::deviceInfoFirmwareVersion(BasicStringInterface& str)					
 {
+    X2MutexLocker ml(GetMutex());
     if(m_bLinked) {
         char cFirmware[SERIAL_BUFFER_SIZE];
         m_DomePro.getFirmwareVersion(cFirmware, SERIAL_BUFFER_SIZE);
@@ -540,6 +654,7 @@ void X2Dome::deviceInfoDetailedDescription(BasicStringInterface& str) const
 
 void X2Dome::deviceInfoModel(BasicStringInterface& str)
 {
+    X2MutexLocker ml(GetMutex());
     if(m_bLinked) {
         char cModel[SERIAL_BUFFER_SIZE];
         m_DomePro.getModel(cModel, SERIAL_BUFFER_SIZE);

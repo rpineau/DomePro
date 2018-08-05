@@ -48,7 +48,6 @@
 
 enum DIALOGS {MAIN, SHUTTER, TIMEOUTS, DIAG };
 
-
 class X2Dome: public DomeDriverInterface, public SerialPortParams2Interface, public ModalSettingsDialogInterface, public X2GUIEventInterface
 {
 public:
@@ -135,7 +134,7 @@ public:
 private:
 
 	SerXInterface 									*	GetSerX() {return m_pSerX; }		
-	TheSkyXFacadeForDriversInterface				*	GetTheSkyXFacadeForDrivers() {return m_pTheSkyXForMounts;}
+	TheSkyXFacadeForDriversInterface				*	GetTheSkyXFacadeForDrivers() {return m_pTheSkyXFacadeForDriversInterface;}
 	SleeperInterface								*	GetSleeper() {return m_pSleeper; }
 	BasicIniUtilInterface							*	GetSimpleIniUtil() {return m_pIniUtil; }
 	LoggerInterface									*	GetLogger() {return m_pLogger; }
@@ -143,7 +142,7 @@ private:
 	TickCountInterface								*	GetTickCountInterface() {return m_pTickCount;}
 
 	SerXInterface									*	m_pSerX;		
-	TheSkyXFacadeForDriversInterface				*	m_pTheSkyXForMounts;
+	TheSkyXFacadeForDriversInterface				*	m_pTheSkyXFacadeForDriversInterface;
 	SleeperInterface								*	m_pSleeper;
 	BasicIniUtilInterface							*	m_pIniUtil;
 	LoggerInterface									*	m_pLogger;
@@ -169,7 +168,7 @@ private:
     CDomePro    m_DomePro;
     bool        m_bHasShutterControl;
     bool        m_bOpenUpperShutterOnly;
-    bool        m_bLearningDomeCPR;
+    int         m_nLearningDomeCPR;
     int         m_bBattRequest;
     int         m_nCurrentDialog;
 

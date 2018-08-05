@@ -30,6 +30,10 @@ CDomePro::CDomePro()
 
     m_bParked = true;   // assume we were parked.
     m_bHomed = false;
+
+    m_nLearning = 0;
+    m_nLeftCPR = 0;
+    m_nRightCPR = 0;
     
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
     memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
@@ -152,10 +156,13 @@ int CDomePro::Connect(const char *pszPort)
 #endif
 
 
-    // assume the dome was parked
-    nErr = getDomeParkAz(m_dCurrentAzPosition);
-    if(!nErr)
-        syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
+    // Check if the dome is at park
+    getDomeLimits();
+    if(m_nAtParkSate == ACTIVE) {
+        nErr = getDomeParkAz(m_dCurrentAzPosition);
+        if(!nErr)
+            syncDome(m_dCurrentAzPosition, m_dCurrentElPosition);
+    }
 
     nErr = getDomeShutterStatus(nState);
     nErr = getDomeLimits();
@@ -298,7 +305,7 @@ int CDomePro::goHome()
 }
 
 #pragma mark TODO : Calibrate needs rewriting
-int CDomePro::learnAzimuthCPR()
+int CDomePro::learnAzimuthCprRight()
 {
     int nErr = DP2_OK;
 
@@ -309,6 +316,23 @@ int CDomePro::learnAzimuthCPR()
     startDomeAzGaugeRight();
 
     m_bCalibrating = true;
+    m_nLearning = RIGHT;
+    return nErr;
+}
+
+int CDomePro::learnAzimuthCprLeft()
+{
+    int nErr = DP2_OK;
+
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    // get the number of CPR going right.
+    startDomeAzGaugeLeft();
+
+    m_bCalibrating = true;
+    m_nLearning = LEFT;
+
     return nErr;
 }
 
@@ -353,19 +377,19 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
     m_nModel = (int)strtoul(szResp, NULL, 16);
     switch(m_nModel) {
         case CLASSIC_DOME :
-            strncpy(pszModel, "DomePro2-d", SERIAL_BUFFER_SIZE);
+            strncpy(pszModel, "DomePro2-d", nStrMaxLen);
             break;
 
         case CLAMSHELL :
-            strncpy(pszModel, "DomePro2-c", SERIAL_BUFFER_SIZE);
+            strncpy(pszModel, "DomePro2-c", nStrMaxLen);
             break;
 
         case ROR :
-            strncpy(pszModel, "DomePro2-r", SERIAL_BUFFER_SIZE);
+            strncpy(pszModel, "DomePro2-r", nStrMaxLen);
             break;
 
         default:
-            strncpy(pszModel, "Unknown", SERIAL_BUFFER_SIZE);
+            strncpy(pszModel, "Unknown", nStrMaxLen);
             break;
     }
 
@@ -411,9 +435,8 @@ int CDomePro::getModuleType(int &nModuleType)
 
 int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 {
-    int nErr;
+    int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -425,21 +448,18 @@ int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 
     switch(m_nNbStepPerRev) {
         case POSITIVE :
-            snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSmpPositive;");
+            nErr = domeCommand("!DSmpPositive;", szResp, SERIAL_BUFFER_SIZE);
+
             break;
         case NEGATIVE :
-            snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSmpNegative;");
+            nErr = domeCommand("!DSmpNegative;", szResp, SERIAL_BUFFER_SIZE);
             break;
         default:
+            nErr = ERR_CMDFAILED;
             break;
     }
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
 
     return nErr;
-    
 }
 
 
@@ -475,9 +495,8 @@ int CDomePro::getDomeAzMotorPolarity(int &nPolarity)
 
 int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 {
-    int nErr;
+    int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -489,19 +508,17 @@ int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 
     switch(m_nAzEncoderPolarity) {
         case POSITIVE :
-            snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSepPositive;");
+            nErr = domeCommand("!DSepPositive;", szResp, SERIAL_BUFFER_SIZE);
             break;
+
         case NEGATIVE :
-            snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSepNegative;");
+            nErr = domeCommand("!DSepNegative;", szResp, SERIAL_BUFFER_SIZE);
             break;
+
         default:
+            nErr = ERR_CMDFAILED;
             break;
     }
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    
     return nErr;
 }
 
@@ -643,18 +660,26 @@ int CDomePro::isCloseComplete(bool &bComplete)
 int CDomePro::isParkComplete(bool &bComplete)
 {
     int nErr = 0;
+    int nMode;
     double dDomeAz=0;
     bool bIsMoving = false;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
+    nErr = getDomeAzMoveMode(nMode);
+    if(nMode == PARKING)
+    {
+        bComplete = false;
+        return nErr;
+    }
+
     getDomeAzPosition(dDomeAz);
     nErr = isDomeMoving(bIsMoving);
     if(nErr)
         return nErr;
 
-    if(bIsMoving) {
+    if(bIsMoving) { // this should not happen
         bComplete = false;
         return nErr;
     }
@@ -741,7 +766,6 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
 int CDomePro::isLearningCPRComplete(bool &bComplete)
 {
     int nErr = DP2_OK;
-    bool bStateComplete = false;
     int nMode;
     int nSteps;
 
@@ -757,16 +781,26 @@ int CDomePro::isLearningCPRComplete(bool &bComplete)
     }
 
     if(nMode == GAUGING)
-        return bStateComplete;
+    {
+        bComplete = false;
+        return nErr;
+    }
+
     // Gauging is done. let's read the value
-    nErr = getDomeAzGaugeRight(nSteps);
+    if(m_nLearning == RIGHT) {
+        nErr = getDomeAzGaugeRight(nSteps);
+        m_nRightCPR = nSteps;
+        }
+    else {
+        nErr = getDomeAzGaugeLeft(nSteps);
+        m_nLeftCPR = nSteps;
+    }
     if(nErr) {
         killDomeAzimuthMovement();
         m_bCalibrating = false;
-        // restore previous value as there was an error
-        m_nNbStepPerRev = m_nNbStepPerRev_save;
+        m_nLearning = 0;
+        return nErr;
     }
-    m_nNbStepPerRev = nSteps;
     bComplete = true;
     return nErr;
 }
@@ -800,6 +834,17 @@ int CDomePro::setHomeAz(double dAz)
     setDomeHomeAzimuth(nPos);
     m_dHomeAz = dAz;
     return nErr;
+}
+
+int CDomePro::setDomeAzCoast(double dAz)
+{
+    int nErr = DP2_OK;
+    int nPos;
+
+    AzToTicks(dAz, nPos);
+    nErr = setDomeAzCoast(nPos);
+    return nErr;
+
 }
 
 int CDomePro::getDomeAzCoast(double &dAz)
@@ -1252,6 +1297,18 @@ int CDomePro::getDomeAzCPR(int &nValue)
     return nErr;
 }
 
+int CDomePro::getLeftCPR()
+{
+    return m_nLeftCPR;
+}
+
+int CDomePro::getRightCPR()
+{
+    return m_nRightCPR;
+
+}
+
+
 #pragma mark not yet implemented in the firmware
 int CDomePro::setDomeMaxVel(int nValue)
 {
@@ -1407,7 +1464,9 @@ int CDomePro::getDomeAzMoveMode(int &mode)
     else if(strstr(szResp, "Gauging")) {
         mode = GAUGING;
     }
-
+    else if(strstr(szResp, "Parking")) {
+        mode = PARKING;
+    }
     return nErr;
 }
 
@@ -1465,10 +1524,10 @@ int CDomePro::setDomeHomeDirection(int nDir)
     char szResp[SERIAL_BUFFER_SIZE];
 
     if(nDir == LEFT) {
-        nErr = domeCommand("DShdLeft", szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DShdLeft;", szResp, SERIAL_BUFFER_SIZE);
     }
     else if (nDir == RIGHT) {
-        nErr = domeCommand("DShdRight", szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DShdRight;", szResp, SERIAL_BUFFER_SIZE);
     }
     else {
         return INVALID_COMMAND;
@@ -1477,7 +1536,7 @@ int CDomePro::setDomeHomeDirection(int nDir)
     return nErr;
 }
 
-int CDomePro::GetDomeHomeDirection(int &nDir)
+int CDomePro::getDomeHomeDirection(int &nDir)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -1510,6 +1569,40 @@ int CDomePro::setDomeHomeAzimuth(int nPos)
     nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
 
     return nErr;
+}
+
+int CDomePro::setDomeAzimuthOCP_Limit(double dLimit)
+{
+
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    ulTmp = (int)(dLimit/0.0468f);
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSxa0x%08X;", ulTmp);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeAzimuthOCP_Limit(double &dLimit)
+{
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGxa;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    ulTmp = (int)strtoul(szResp, NULL, 16);
+
+    dLimit = (double)(ulTmp * 0.0468f);
+
+    return nErr;
+
 }
 
 
