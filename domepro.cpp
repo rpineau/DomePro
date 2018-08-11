@@ -2680,7 +2680,7 @@ int CDomePro::getShutter2_LimitFaultCheckEnabled(bool &bEnabled)
 
     bEnabled = false;
 
-    nErr = domeCommand("!DClf;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGl2;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
@@ -2765,7 +2765,7 @@ int CDomePro::clearDomeLimitFault()
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
-    nErr = domeCommand("!DGl2;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DClf;", szResp, SERIAL_BUFFER_SIZE);
     return nErr;
 }
 
