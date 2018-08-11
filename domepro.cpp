@@ -304,7 +304,7 @@ int CDomePro::goHome()
     return nErr;
 }
 
-#pragma mark TODO : Calibrate needs rewriting
+#pragma mark TODO : Calibrate test
 int CDomePro::learnAzimuthCprRight()
 {
     int nErr = DP2_OK;
@@ -1579,7 +1579,8 @@ int CDomePro::setDomeAzimuthOCP_Limit(double dLimit)
     char szResp[SERIAL_BUFFER_SIZE];
     char szCmd[SERIAL_BUFFER_SIZE];
 
-    ulTmp = (int)(dLimit/0.0468f);
+    ulTmp = (int)floor((dLimit/0.0468f)+0.5);
+
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSxa0x%08X;", ulTmp);
     nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
 
@@ -1599,10 +1600,9 @@ int CDomePro::getDomeAzimuthOCP_Limit(double &dLimit)
     // convert result hex string to long
     ulTmp = (int)strtoul(szResp, NULL, 16);
 
-    dLimit = (double)(ulTmp * 0.0468f);
+    dLimit = (double)ulTmp * 0.0468f;
 
     return nErr;
-
 }
 
 
@@ -2557,6 +2557,218 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
 
     return nErr;
 }
+
+int CDomePro::setDomeShutOpOnHome(bool bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(bEnabled)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutOpOnHome(bool &bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    bEnabled = false;
+
+    nErr = domeCommand("!DGsh;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    if(strstr(szResp,"Yes"))
+        bEnabled = true;
+
+    return nErr;
+}
+
+
+int CDomePro::setHomeWithShutterClose(bool bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(bEnabled)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSchYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSchNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getHomeWithShutterClose(bool &bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    bEnabled = false;
+
+    nErr = domeCommand("!DGch;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    if(strstr(szResp,"Yes"))
+        bEnabled = true;
+
+    return nErr;
+}
+
+int CDomePro::setShutter1_LimitFaultCheckEnabled(bool bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(bEnabled)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl1Yes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl1No;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getShutter1_LimitFaultCheckEnabled(bool &bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    bEnabled = false;
+
+    nErr = domeCommand("!DGl1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    if(strstr(szResp,"Yes"))
+        bEnabled = true;
+
+    return nErr;
+}
+
+int CDomePro::setShutter2_LimitFaultCheckEnabled(bool bEnabled)
+{    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(bEnabled)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl2Yes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl2No;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getShutter2_LimitFaultCheckEnabled(bool &bEnabled)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    bEnabled = false;
+
+    nErr = domeCommand("!DClf;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    if(strstr(szResp,"Yes"))
+        bEnabled = true;
+
+    return nErr;
+}
+
+int CDomePro::setDomeShutter1_OCP_Limit(double dLimit)
+{
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    ulTmp = (int)floor((dLimit/0.0468f)+0.5);
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSx10x%08X;", ulTmp);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutter1_OCP_Limit(double &dLimit)
+{
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGx1;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    ulTmp = (int)strtoul(szResp, NULL, 16);
+
+    dLimit = (double)ulTmp * 0.0468f;
+
+    return nErr;
+
+}
+
+int CDomePro::setDomeShutter2_OCP_Limit(double dLimit)
+{
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    ulTmp = (int)floor((dLimit/0.0468f)+0.5);
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSx20x%08X;", ulTmp);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::getDomeShutter2_OCP_Limit(double &dLimit)
+{
+    int nErr = DP2_OK;
+    int ulTmp;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGx2;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    // convert result hex string to long
+    ulTmp = (int)strtoul(szResp, NULL, 16);
+
+    dLimit = (double)ulTmp * 0.0468f;
+
+    return nErr;
+
+}
+
+
+
+int CDomePro::clearDomeLimitFault()
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    nErr = domeCommand("!DGl2;", szResp, SERIAL_BUFFER_SIZE);
+    return nErr;
+}
+
 
 
 void  CDomePro::hexdump(const char* inputData, char *outBuffer, int size)

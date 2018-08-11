@@ -51,6 +51,15 @@
 #define INHIBIT_SIMULT	"checkBox_4"
 #define SHUTTER_OPERATE_AT_HOME "checkBox_9"
 #define HOME_ON_SHUTTER_CLOSE   "checkBox_8"
+#define UPPER_SHUTTER_LIMIT_CHECK   "checkBox_11"
+#define LOWER_SHUTTER_LIMIT_CHECK   "checkBox_12"
+#define CLEAR_LIMIT_FAULT   "pushButton_3"
+#define SHUTTER1_OCP    "doubleSpinBox"
+#define SHUTTER2_OCP    "doubleSpinBox_2"
+
+// events
+#define CLEAR_LIMIT_FAULT_CLICKED   "on_pushButton_3_clicked"
+
 
 // *********************************************
 // -------------------------------------

@@ -219,6 +219,25 @@ public:
     int             getDomeShutterTempADC(double &dTemp);
     int             getDomeAzimuthTempADC(double &dTemp);
 
+    int             setDomeShutOpOnHome(bool bEnabled);
+    int             getDomeShutOpOnHome(bool &bEnabled);
+
+    int             setHomeWithShutterClose(bool bCloseOnHome);
+    int             getHomeWithShutterClose(bool &bCloseOnHome);
+
+    int             setShutter1_LimitFaultCheckEnabled(bool bEnabled);
+    int             getShutter1_LimitFaultCheckEnabled(bool &bEnabled);
+
+    int             setShutter2_LimitFaultCheckEnabled(bool bEnabled);
+    int             getShutter2_LimitFaultCheckEnabled(bool &bEnabled);
+
+    int             setDomeShutter1_OCP_Limit(double dLimit);
+    int             getDomeShutter1_OCP_Limit(double &dLimit);
+
+    int             setDomeShutter2_OCP_Limit(double dLimit);
+    int             getDomeShutter2_OCP_Limit(double &dLimit);
+
+    int             clearDomeLimitFault();
 protected:
 
     int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);

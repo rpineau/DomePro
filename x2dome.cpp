@@ -419,6 +419,7 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
     char szTmpBuf[SERIAL_BUFFER_SIZE];
     bool bTmp;
     int nTmp;
+    double dTmp;
 
     X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
     X2GUIInterface*                    ui = uiutil.X2UI();
@@ -462,7 +463,25 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
                 m_DomePro.getDomeShutterCloseFirst(nTmp);
                 dx->setCurrentIndex(OPEN_FIRST, nTmp-1);
 
-                dx->setEnabled(INHIBIT_SIMULT, true); // no corresponding function, need to ping Chris
+                dx->setEnabled(INHIBIT_SIMULT, false); // no corresponding function, need to ping Chris
+
+                dx->setEnabled(SHUTTER_OPERATE_AT_HOME, true);
+                m_DomePro.getDomeShutOpOnHome(bTmp);
+                dx->setChecked(SHUTTER_OPERATE_AT_HOME, bTmp);
+
+                dx->setEnabled(HOME_ON_SHUTTER_CLOSE, true);
+                m_DomePro.getHomeWithShutterClose(bTmp);
+                dx->setChecked(HOME_ON_SHUTTER_CLOSE, bTmp);
+
+                m_DomePro.getShutter1_LimitFaultCheckEnabled(bTmp);
+                dx->setChecked(UPPER_SHUTTER_LIMIT_CHECK, bTmp);
+                m_DomePro.getShutter2_LimitFaultCheckEnabled(bTmp);
+                dx->setChecked(LOWER_SHUTTER_LIMIT_CHECK, bTmp);
+
+                m_DomePro.getDomeShutter1_OCP_Limit(dTmp);
+                dx->setPropertyDouble(SHUTTER1_OCP, "value", dTmp);
+                m_DomePro.getDomeShutter2_OCP_Limit(dTmp);
+                dx->setPropertyDouble(SHUTTER2_OCP, "value", dTmp);
             }
         }
         else { // no shutter unit
@@ -484,6 +503,50 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
     if (nErr )
         return nErr;
 
+    //Retreive values from the user interface
+    if (bPressedOK)
+    {
+        if(m_bLinked)
+        {
+            // read all controls and set new values
+            bTmp = dx->isChecked(SINGLE_SHUTTER);
+            m_DomePro.setDomeSingleShutterMode(bTmp);
+
+            if(!bTmp) {
+                nTmp = dx->currentIndex(OPEN_FIRST);
+                m_DomePro.setDomeShutterOpenFirst(nTmp+1);
+
+                nTmp = dx->currentIndex(CLOSE_FIRST);
+                m_DomePro.setDomeShutterCloseFirst(nTmp+1);
+            }
+
+            // no command for Inhibit simultaneous shutter motion
+
+            bTmp = dx->isChecked(SHUTTER_OPERATE_AT_HOME);
+            m_DomePro.setDomeShutOpOnHome(bTmp);
+
+            bTmp = dx->isChecked(HOME_ON_SHUTTER_CLOSE);
+            m_DomePro.setHomeWithShutterClose(bTmp);
+
+            bTmp = dx->isChecked(UPPER_SHUTTER_LIMIT_CHECK);
+            m_DomePro.setShutter1_LimitFaultCheckEnabled(bTmp);
+
+            bTmp = dx->isChecked(LOWER_SHUTTER_LIMIT_CHECK);
+            m_DomePro.setShutter2_LimitFaultCheckEnabled(bTmp);
+
+
+            bTmp = dx->isChecked(HOME_ON_SHUTTER_CLOSE);
+
+            dx->propertyDouble(SHUTTER1_OCP, "value", dTmp);
+            m_DomePro.setDomeShutter1_OCP_Limit(dTmp);
+
+            dx->propertyDouble(SHUTTER2_OCP, "value", dTmp);
+            m_DomePro.setDomeShutter2_OCP_Limit(dTmp);
+        }
+    }
+
+
+
     m_nCurrentDialog = MAIN;
     return nErr;
 
@@ -497,6 +560,8 @@ int X2Dome::doShutterDialogEvents(X2GUIExchangeInterface* uiex, const char* pszE
     int nErr = SB_OK;
     printf("[doShutterDialogEvents] pszEvent : %s\n", pszEvent);
 
+    if (!strcmp(pszEvent, CLEAR_LIMIT_FAULT_CLICKED))
+        m_DomePro.clearDomeLimitFault();
     return nErr;
 }
 
