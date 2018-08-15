@@ -27,12 +27,35 @@ X2Dome::X2Dome(const char* pszSelection,
 	m_bLinked = false;
     m_nLearningDomeCPR = NONE;
     m_bBattRequest = 0;
-
+    m_bShutterGotoEnabled = false;
     m_DomePro.SetSerxPointer(pSerX);
     m_DomePro.setLogger(pLogger);
 
     if (m_pIniUtil)
-    {   
+    {
+        // read home Az
+        m_DomePro.setHomeAz( m_pIniUtil->readDouble(PARENT_KEY, CHILD_KEY_HOME_AZ, 0));
+
+        // shutter angle calibration
+        m_Shutter1OpenAngle = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER1_OPEN_ANGLE, 90);
+        m_Shutter1OpenAngle_ADC = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER1_OPEN_ANGLE_ADC, 3000);
+        m_Shutter1CloseAngle = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER1_CLOSE_ANGLE, 0);
+        m_Shutter1CloseAngle_ADC = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER1_CLOSE_ANGLE_ADC, 500);
+        m_ADC_Ratio1 = (m_Shutter1OpenAngle_ADC - m_Shutter1CloseAngle_ADC) / (m_Shutter1OpenAngle - m_Shutter1CloseAngle);
+
+        m_Shutter2OpenAngle = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER2_OPEN_ANGLE, 90);
+        m_Shutter2OpenAngle_ADC = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER2_OPEN_ANGLE_ADC, 3000);
+        m_Shutter2CloseAngle = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER2_CLOSE_ANGLE, 0);
+        m_Shutter2CloseAngle_ADC = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER2_CLOSE_ANGLE_ADC, 500);
+        m_ADC_Ratio2 = (m_Shutter2OpenAngle_ADC - m_Shutter2CloseAngle_ADC) / (m_Shutter2OpenAngle - m_Shutter2CloseAngle);
+
+        m_bShutterGotoEnabled = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SHUTTER_GOTO, false);
+
+        m_DomePro.setShutterAngleCalibration(m_Shutter1OpenAngle, m_Shutter1OpenAngle_ADC,
+                                             m_Shutter1CloseAngle, m_Shutter1CloseAngle_ADC,
+                                             m_Shutter2OpenAngle, m_Shutter2OpenAngle_ADC,
+                                             m_Shutter2CloseAngle, m_Shutter2CloseAngle_ADC,
+                                             m_bShutterGotoEnabled);
     }
 }
 
@@ -173,10 +196,12 @@ int X2Dome::execModalSettingsDialog()
         dx->setEnabled(HOME_POS, true);
         nErr = m_DomePro.getDomeHomeAz(dTmp);
         dx->setPropertyDouble(HOME_POS, "value", dTmp);
+        printf("HOME_POS dTmp = %3.2f\n", dTmp);
 
         dx->setEnabled(PARK_POS, true);
         nErr = m_DomePro.getDomeParkAz(dTmp);
         dx->setPropertyDouble(PARK_POS, "value", dTmp);
+        printf("PARK_POS dTmp = %3.2f\n", dTmp);
 
         dx->setEnabled(SHUTTER_BUTTON, true);
         dx->setEnabled(TIMEOUTS_BUTTON, true);
@@ -248,9 +273,12 @@ int X2Dome::execModalSettingsDialog()
 
             dx->propertyDouble(HOME_POS, "value", dTmp);
             m_DomePro.setHomeAz(dTmp);
+            printf("HOME_POS dTmp = %3.2f\n", dTmp);
+            nErr = m_pIniUtil->writeDouble(PARENT_KEY, CHILD_KEY_HOME_AZ, dTmp);
 
             dx->propertyDouble(PARK_POS, "value", dTmp);
             m_DomePro.setParkAz(dTmp);
+            printf("PARK_POS dTmp = %3.2f\n", dTmp);
         }
     }
     return nErr;
@@ -273,7 +301,6 @@ void X2Dome::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
         case DIAG:
             doDiagDialogEvents(uiex, pszEvent);
             break;
-
     }
 
 
@@ -318,11 +345,11 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
                     return nErr;
                 }
 
-                // enable "ok" and "Lean Azimuth CPR"
+                // enable "ok" and "Learn Azimuth CPR"
                 uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, true);
                 uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, true);
                 uiex->setEnabled(BUTTON_OK, true);
-                // read guaged step per rev from dome
+                // read gauged step per rev from dome
                 switch (m_nLearningDomeCPR) {
                     case LEFT:
                         nTmp = m_DomePro.getLeftCPR();
@@ -339,7 +366,6 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
                         break;
                 }
                 m_nLearningDomeCPR = NONE;
-
             }
         }
     }
@@ -347,7 +373,7 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_RIGHT_CLICKED) )
     {
         if(m_bLinked) {
-            // disable "ok" and "Lean Azimuth CPR"
+            // disable "ok" and "Learn Azimuth CPR"
             uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, false);
             uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, false);
             uiex->setEnabled(BUTTON_OK, false);
@@ -359,7 +385,7 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     if (!strcmp(pszEvent, LEARN_AZIMUTH_CPR_LEFT_CLICKED) )
     {
         if(m_bLinked) {
-            // disable "ok" and "Lean Azimuth CPR"
+            // disable "ok" and "Learn Azimuth CPR"
             uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, false);
             uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, false);
             uiex->setEnabled(BUTTON_OK, false);
@@ -375,18 +401,21 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
             if(!nTmp) {
                 snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , right value can't be 0");
                 uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                return nErr;
             }
 
             nTmp2 = m_DomePro.getLeftCPR();
             if(!nTmp) {
                 snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , left value can't be 0");
                 uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                return nErr;
             }
             nTmp =  (int)floor( 0.5 +(nTmp + nTmp2)/2);
             nErr = m_DomePro.setDomeAzCPR(nTmp);
             if(nErr) {
                 snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR : Error %d", nErr);
                 uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                return nErr;
             }
             uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
         }
@@ -394,20 +423,39 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
 
     if (!strcmp(pszEvent, SHUTTER_CKICKED))
     {
+        setMainDialogControlState(uiex, false);
         doDomeProShutter(bPressedOK);
+        setMainDialogControlState(uiex, true);
     }
 
     if (!strcmp(pszEvent, TIMEOUTS_CKICKED))
     {
+        setMainDialogControlState(uiex, false);
         doDomeProTimeouts(bPressedOK);
+        setMainDialogControlState(uiex, true);
     }
 
     if (!strcmp(pszEvent, DIAG_CKICKED))
     {
+        setMainDialogControlState(uiex, false);
         doDomeProDiag(bPressedOK);
+        setMainDialogControlState(uiex, true);
     }
 
     return nErr;
+}
+
+void X2Dome::setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabeled)
+{
+    uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, enabeled);
+    uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, enabeled);
+    uiex->setEnabled(SET_AZIMUTH_CPR, enabeled);
+    uiex->setEnabled(SHUTTER_BUTTON, enabeled);
+    uiex->setEnabled(TIMEOUTS_BUTTON, enabeled);
+    uiex->setEnabled(DIAG_BUTTON, enabeled);
+    uiex->setEnabled(BUTTON_OK, enabeled);
+    uiex->setEnabled(BUTTON_CANCEL, enabeled);
+
 }
 
 //
@@ -439,10 +487,6 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
     m_nCurrentDialog = SHUTTER;
     // sequencing
     if(m_bLinked) {
-        dx->setEnabled(SINGLE_SHUTTER, true);
-        dx->setEnabled(OPEN_FIRST, true);
-        dx->setEnabled(CLOSE_FIRST, true);
-        dx->setEnabled(INHIBIT_SIMULT, true);
         m_DomePro.getModel(szTmpBuf, SERIAL_BUFFER_SIZE);
         dx->setPropertyString(DOMEPRO_MODEL, "text", szTmpBuf);
         // sequencing
@@ -478,6 +522,31 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
                 m_DomePro.getShutter2_LimitFaultCheckEnabled(bTmp);
                 dx->setChecked(LOWER_SHUTTER_LIMIT_CHECK, bTmp);
 
+                // shutter angle calibration
+                if(m_DomePro.getModelType() == CLAMSHELL) {
+                    dx->setPropertyInt(SHUT1_OPEN_ANGLE, "value", m_Shutter1OpenAngle);
+                    dx->setPropertyInt(SHUT1_OPEN_ANGLE_ADC, "value", m_Shutter1OpenAngle_ADC);
+
+                    dx->setPropertyInt(SHUT1_CLOSE_ANGLE, "value", m_Shutter1CloseAngle);
+                    dx->setPropertyInt(SHUT1_CLOSE_ANGLE_ADC, "value", m_Shutter1CloseAngle_ADC);
+
+                    dx->setPropertyInt(SHUT2_OPEN_ANGLE, "value", m_Shutter2OpenAngle);
+                    dx->setPropertyInt(SHUT2_OPEN_ANGLE_ADC, "value", m_Shutter2OpenAngle_ADC);
+
+                    dx->setPropertyInt(SHUT2_CLOSE_ANGLE, "value", m_Shutter2CloseAngle);
+                    dx->setPropertyInt(SHUT2_CLOSE_ANGLE_ADC, "value", m_Shutter2CloseAngle_ADC);
+                }
+                else {
+                    dx->setEnabled(SHUT1_OPEN_ANGLE, false);
+                    dx->setEnabled(SHUT1_OPEN_ANGLE_ADC, false);
+                    dx->setEnabled(SHUT1_CLOSE_ANGLE, false);
+                    dx->setEnabled(SHUT1_CLOSE_ANGLE_ADC, false);
+                    dx->setEnabled(SHUT2_OPEN_ANGLE, false);
+                    dx->setEnabled(SHUT2_OPEN_ANGLE_ADC, false);
+                    dx->setEnabled(SHUT2_CLOSE_ANGLE, false);
+                    dx->setEnabled(SHUT2_CLOSE_ANGLE_ADC, false);
+                }
+
                 m_DomePro.getDomeShutter1_OCP_Limit(dTmp);
                 dx->setPropertyDouble(SHUTTER1_OCP, "value", dTmp);
                 m_DomePro.getDomeShutter2_OCP_Limit(dTmp);
@@ -489,14 +558,41 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
             dx->setEnabled(OPEN_FIRST, false);
             dx->setEnabled(CLOSE_FIRST, false);
             dx->setEnabled(INHIBIT_SIMULT, false);
-            dx->setPropertyString(DOMEPRO_MODEL, "text", "");
+            dx->setEnabled(SHUTTER_OPERATE_AT_HOME, false);
+            dx->setEnabled(HOME_ON_SHUTTER_CLOSE, false);
+            dx->setEnabled(UPPER_SHUTTER_LIMIT_CHECK, false);
+            dx->setEnabled(LOWER_SHUTTER_LIMIT_CHECK, false);
+            dx->setEnabled(SHUT1_OPEN_ANGLE, false);
+            dx->setEnabled(SHUT1_OPEN_ANGLE_ADC, false);
+            dx->setEnabled(SHUT1_CLOSE_ANGLE, false);
+            dx->setEnabled(SHUT1_CLOSE_ANGLE_ADC, false);
+            dx->setEnabled(SHUT2_OPEN_ANGLE, false);
+            dx->setEnabled(SHUT2_OPEN_ANGLE_ADC, false);
+            dx->setEnabled(SHUT2_CLOSE_ANGLE, false);
+            dx->setEnabled(SHUT2_CLOSE_ANGLE_ADC, false);
+            dx->setEnabled(SHUTTER1_OCP, false);
+            dx->setEnabled(SHUTTER2_OCP, false);
         }
 
     } else {
-        dx->setEnabled(SINGLE_SHUTTER, false);
+        dx->setChecked(SINGLE_SHUTTER,false);
         dx->setEnabled(OPEN_FIRST, false);
         dx->setEnabled(CLOSE_FIRST, false);
         dx->setEnabled(INHIBIT_SIMULT, false);
+        dx->setEnabled(SHUTTER_OPERATE_AT_HOME, false);
+        dx->setEnabled(HOME_ON_SHUTTER_CLOSE, false);
+        dx->setEnabled(UPPER_SHUTTER_LIMIT_CHECK, false);
+        dx->setEnabled(LOWER_SHUTTER_LIMIT_CHECK, false);
+        dx->setEnabled(SHUT1_OPEN_ANGLE, false);
+        dx->setEnabled(SHUT1_OPEN_ANGLE_ADC, false);
+        dx->setEnabled(SHUT1_CLOSE_ANGLE, false);
+        dx->setEnabled(SHUT1_CLOSE_ANGLE_ADC, false);
+        dx->setEnabled(SHUT2_OPEN_ANGLE, false);
+        dx->setEnabled(SHUT2_OPEN_ANGLE_ADC, false);
+        dx->setEnabled(SHUT2_CLOSE_ANGLE, false);
+        dx->setEnabled(SHUT2_CLOSE_ANGLE_ADC, false);
+        dx->setEnabled(SHUTTER1_OCP, false);
+        dx->setEnabled(SHUTTER2_OCP, false);
     }
 
     nErr = ui->exec(bPressedOK);
@@ -534,8 +630,31 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
             bTmp = dx->isChecked(LOWER_SHUTTER_LIMIT_CHECK);
             m_DomePro.setShutter2_LimitFaultCheckEnabled(bTmp);
 
+            dx->propertyInt(SHUT1_OPEN_ANGLE, "value", m_Shutter1OpenAngle);
+            dx->propertyInt(SHUT1_OPEN_ANGLE_ADC, "value", m_Shutter1OpenAngle_ADC);
+            dx->propertyInt(SHUT1_CLOSE_ANGLE, "value", m_Shutter1CloseAngle);
+            dx->propertyInt(SHUT1_CLOSE_ANGLE_ADC, "value", m_Shutter1CloseAngle_ADC);
+            m_ADC_Ratio1 = (m_Shutter1OpenAngle_ADC - m_Shutter1CloseAngle_ADC) / (m_Shutter1OpenAngle - m_Shutter1CloseAngle);
 
-            bTmp = dx->isChecked(HOME_ON_SHUTTER_CLOSE);
+            dx->propertyInt(SHUT2_OPEN_ANGLE, "value", m_Shutter2OpenAngle);
+            dx->propertyInt(SHUT2_OPEN_ANGLE_ADC, "value", m_Shutter2OpenAngle_ADC);
+            dx->propertyInt(SHUT2_CLOSE_ANGLE, "value", m_Shutter2CloseAngle);
+            dx->propertyInt(SHUT2_CLOSE_ANGLE_ADC, "value", m_Shutter2CloseAngle_ADC);
+            m_ADC_Ratio2 = (m_Shutter2OpenAngle_ADC - m_Shutter2CloseAngle_ADC) / (m_Shutter2OpenAngle - m_Shutter2CloseAngle);
+
+            m_bShutterGotoEnabled = dx->isChecked(SHUT_ANGLE_GOTO);
+            
+            nErr = SB_OK;
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT1_OPEN_ANGLE, m_Shutter1OpenAngle);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT1_OPEN_ANGLE_ADC, m_Shutter1OpenAngle_ADC);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT1_CLOSE_ANGLE, m_Shutter1CloseAngle);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT1_CLOSE_ANGLE_ADC, m_Shutter1CloseAngle_ADC);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT2_OPEN_ANGLE, m_Shutter2OpenAngle);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT2_OPEN_ANGLE_ADC, m_Shutter2OpenAngle_ADC);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT2_CLOSE_ANGLE, m_Shutter2CloseAngle);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, SHUT2_CLOSE_ANGLE_ADC, m_Shutter2CloseAngle_ADC);
+            nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_SHUTTER_GOTO, m_bShutterGotoEnabled);
+
 
             dx->propertyDouble(SHUTTER1_OCP, "value", dTmp);
             m_DomePro.setDomeShutter1_OCP_Limit(dTmp);
@@ -544,8 +663,6 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
             m_DomePro.setDomeShutter2_OCP_Limit(dTmp);
         }
     }
-
-
 
     m_nCurrentDialog = MAIN;
     return nErr;
@@ -763,7 +880,7 @@ int X2Dome::dapiGetAzEl(double* pdAz, double* pdEl)
 
 int X2Dome::dapiGotoAzEl(double dAz, double dEl)
 {
-    int nErr;
+    int nErr = SB_OK;
 
     X2MutexLocker ml(GetMutex());
 
@@ -774,8 +891,10 @@ int X2Dome::dapiGotoAzEl(double dAz, double dEl)
     if(nErr)
         return ERR_CMDFAILED;
 
-    else
-        return SB_OK;
+    if(m_bShutterGotoEnabled)
+        nErr = m_DomePro.gotoElevation(dEl);
+
+    return nErr;
 }
 
 int X2Dome::dapiAbort(void)
@@ -835,13 +954,6 @@ int X2Dome::dapiPark(void)
     if(!m_bLinked)
         return ERR_NOLINK;
 
-    if(m_bHasShutterControl)
-    {
-        nErr = m_DomePro.CloseDomeShutters();
-        if(nErr)
-            return ERR_CMDFAILED;
-    }
-
     nErr = m_DomePro.gotoDomePark();
     if(nErr)
         return ERR_CMDFAILED;
@@ -856,13 +968,6 @@ int X2Dome::dapiUnpark(void)
 
     if(!m_bLinked)
         return ERR_NOLINK;
-    // may be we need a flag to decide if we want to open shutters on unpark.
-    if(m_bHasShutterControl)
-    {
-        nErr = m_DomePro.openDomeShutters();
-        if(nErr)
-            return ERR_CMDFAILED;
-    }
 
     nErr = m_DomePro.unparkDome();
     if(nErr)
@@ -889,14 +994,25 @@ int X2Dome::dapiFindHome(void)
 int X2Dome::dapiIsGotoComplete(bool* pbComplete)
 {
     int nErr;
+    bool bAzGotoDone, bElGotoDone = false;
     X2MutexLocker ml(GetMutex());
 
     if(!m_bLinked)
         return ERR_NOLINK;
 
-    nErr = m_DomePro.isGoToComplete(*pbComplete);
+    nErr = m_DomePro.isGoToComplete(bAzGotoDone);
     if(nErr)
         return ERR_CMDFAILED;
+
+    *pbComplete = bAzGotoDone;
+
+    if(m_bShutterGotoEnabled) {
+        nErr = m_DomePro.isGoToElComplete(bElGotoDone);
+        if(nErr)
+            return ERR_CMDFAILED;
+        *pbComplete = bAzGotoDone & bElGotoDone;
+    }
+
     return SB_OK;
 }
 

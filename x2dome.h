@@ -36,6 +36,18 @@
 #define CHILD_KEY_ROOL_OFF_ROOF "RollOffRoof"
 #define CHILD_KEY_SHUTTER_OPER_ANY_Az "ShutterOperAnyAz"
 
+#define CHILD_KEY_SHUTTER1_OPEN_ANGLE   "Shutter1OpenAngle"
+#define CHILD_KEY_SHUTTER1_OPEN_ANGLE_ADC   "Shutter1OpenAngleADC"
+#define CHILD_KEY_SHUTTER1_CLOSE_ANGLE   "Shutter1CloseAngle"
+#define CHILD_KEY_SHUTTER1_CLOSE_ANGLE_ADC   "Shutter1CloseAngleADC"
+
+#define CHILD_KEY_SHUTTER2_OPEN_ANGLE   "Shutter2OpenAngle"
+#define CHILD_KEY_SHUTTER2_OPEN_ANGLE_ADC   "Shutter2OpenAngleADC"
+#define CHILD_KEY_SHUTTER2_CLOSE_ANGLE   "Shutter2CloseAngle"
+#define CHILD_KEY_SHUTTER2_CLOSE_ANGLE_ADC   "Shutter2CloseAngleADC"
+
+#define CHILD_KEY_SHUTTER_GOTO  "ShutterGotoEnabled"
+
 #if defined(SB_WIN_BUILD)
 #define DEF_PORT_NAME					"COM1"
 #elif defined(SB_MAC_BUILD)
@@ -160,6 +172,8 @@ private:
     int doDomeProDiag(bool& bPressedOK);
     int doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
 
+    void setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabeled);
+    
     void portNameOnToCharPtr(char* pszPort, const int& nMaxSize) const;
 
 
@@ -171,5 +185,20 @@ private:
     int         m_nLearningDomeCPR;
     int         m_bBattRequest;
     int         m_nCurrentDialog;
+
+    int         m_Shutter1OpenAngle;
+    int         m_Shutter1OpenAngle_ADC;
+    int         m_Shutter1CloseAngle;
+    int         m_Shutter1CloseAngle_ADC;
+    double      m_ADC_Ratio1;
+
+    int         m_Shutter2OpenAngle;
+    int         m_Shutter2OpenAngle_ADC;
+    int         m_Shutter2CloseAngle;
+    int         m_Shutter2CloseAngle_ADC;
+    double      m_ADC_Ratio2;
+
+    bool        m_bShutterGotoEnabled;
+
 
 };

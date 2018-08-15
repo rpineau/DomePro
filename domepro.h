@@ -93,6 +93,7 @@ public:
 
     int unparkDome(void);
     int gotoAzimuth(double newAz);
+    int gotoElevation(double newEl);
     int openDomeShutters();
     int CloseDomeShutters();
     int abortCurrentCommand();
@@ -103,6 +104,7 @@ public:
     // Dome informations
     int getFirmwareVersion(char *version, int strMaxLen);
     int getModel(char *model, int strMaxLen);
+    int getModelType();
     int getModuleType(int &nModuleType);
     int getDomeAzMotorType(int &nMotorType);
 
@@ -116,6 +118,7 @@ public:
 
     // command complete functions
     int isGoToComplete(bool &complete);
+    int isGoToElComplete(bool &complete);
     int isOpenComplete(bool &complete);
     int isCloseComplete(bool &complete);
     int isParkComplete(bool &complete);
@@ -138,6 +141,12 @@ public:
     double getCurrentEl();
 
     int getCurrentShutterState();
+
+    void setShutterAngleCalibration(int nShutter1OpenAngle, int nShutter1rOpenAngleADC,
+                                    int nShutter1CloseAngle, int nShutter1CloseAngleADC,
+                                    int nShutter2OpenAngle, int nShutter2rOpenAngleADC,
+                                    int nShutter2CloseAngle, int nShutter2CloseAngleADC,
+                                    bool bShutterGotoEnabled);
 
     void setDebugLog(bool enable);
 
@@ -238,14 +247,15 @@ public:
     int             getDomeShutter2_OCP_Limit(double &dLimit);
 
     int             clearDomeLimitFault();
+
 protected:
 
     int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
 
     // conversion functions
-    void AzToTicks(double pdAz, int &ticks);
-    void TicksToAz(int ticks, double &pdAz);
+    void            AzToTicks(double pdAz, int &ticks);
+    void            TicksToAz(int ticks, double &pdAz);
 
     // movements
     int             setDomeLeftOn(void);
@@ -276,6 +286,9 @@ protected:
     int             getDomeHomeAzimuth(int &nPos);
     int             homeDomeAzimuth(void);
     int             goToDomeAzimuth(int nPos);
+    int             goToDomeElevation(int nADC1, int nADC2);
+    int             GoToDomeShutter1_ADC(int nADC);
+    int             GoToDomeShutter2_ADC(int nADC);
 
     int             setDomeParkAzimuth(int nPos);
     int             getDomeParkAzimuth(int &nPos);
@@ -295,16 +308,14 @@ protected:
     int             closeDomeShutter2(void);
     int             stopDomeShutter1(void);
     int             stopDomeShutter2(void);
-    int             goToDomeShutter1_ADC(int nPos);
-    int             goToDomeShutter2_ADC(int nPos);
-    int             getDomeShutter1_AltitudeADC(int &nPos);
-    int             getDomeShutter2_AltitudeADC(int &nPos);
+    int             getDomeShutter1_ADC(int &nPos);
+    int             getDomeShutter2_ADC(int &nPos);
 
 
     void            hexdump(const char *inputData, char *outBuffer, int size);
     
-    // protected variables
-    LoggerInterface *m_pLogger;
+    SerXInterface*  m_pSerx;
+    LoggerInterface*    m_pLogger;
     bool            m_bDebugLog;
 
     bool            m_bIsConnected;
@@ -319,15 +330,13 @@ protected:
     int             m_nLearning;
 
     double          m_dHomeAz;
-
     double          m_dParkAz;
-
     double          m_dCurrentAzPosition;
     double          m_dCurrentElPosition;
-
     double          m_dGotoAz;
+    double          m_dGotoEl;
+    int             m_nTargetAdc;
 
-    SerXInterface   *m_pSerx;
 
     char            m_szFirmwareVersion[SERIAL_BUFFER_SIZE];
     int             m_nShutterState;
@@ -351,14 +360,29 @@ protected:
 
     char            m_hexdumpBuffer[(SERIAL_BUFFER_SIZE*3)+1];
 
+    int             m_Shutter1OpenAngle;
+    int             m_Shutter1OpenAngle_ADC;
+    int             m_Shutter1CloseAngle;
+    int             m_Shutter1CloseAngle_ADC;
+    double          m_ADC_Ratio1;
+
+    int             m_Shutter2OpenAngle;
+    int             m_Shutter2OpenAngle_ADC;
+    int             m_Shutter2CloseAngle;
+    int             m_Shutter2CloseAngle_ADC;
+    double          m_ADC_Ratio2;
+
+    bool            m_bShutterGotoEnabled;
+
 #ifdef ATCL_DEBUG
-    std::string m_sLogfilePath;
+    std::string     m_sLogfilePath;
     // timestamp for logs
-    char *timestamp;
-    time_t ltime;
-    FILE *Logfile;	  // LogFile
+    char*           timestamp;
+    time_t          ltime;
+    FILE*           Logfile;	  // LogFile
 #endif
 
 };
 
 #endif
+

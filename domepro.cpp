@@ -34,6 +34,8 @@ CDomePro::CDomePro()
     m_nLearning = 0;
     m_nLeftCPR = 0;
     m_nRightCPR = 0;
+
+    m_bShutterGotoEnabled = false;
     
     memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
     memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
@@ -156,6 +158,24 @@ int CDomePro::Connect(const char *pszPort)
 #endif
 
 
+    // get dome home az and park az
+    setDomeHomeAzimuth(0); // we need to make sure we manage the offset to the Home position
+    setDomeParkAzimuth(0);
+    
+    getDomeAzCPR(m_nNbStepPerRev);
+    getDomeParkAz(m_dParkAz);
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::Connect] m_nNbStepPerRev = %d\n", timestamp, m_nNbStepPerRev);
+    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dHomeAz = %3.2f\n", timestamp, m_dHomeAz);
+    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dParkAz = %3.2f\n", timestamp, m_dParkAz);
+    fflush(Logfile);
+#endif
+
+
     // Check if the dome is at park
     getDomeLimits();
     if(m_nAtParkSate == ACTIVE) {
@@ -242,12 +262,38 @@ int CDomePro::gotoAzimuth(double dNewAz)
         return NOT_CONNECTED;
 
     AzToTicks(dNewAz, nPos);
-    nErr = goToDomeAzimuth(nPos);
 
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::gotoAzimuth]  dNewAz : %3.2f\n", timestamp, dNewAz);
+    fprintf(Logfile, "[%s] [CDomePro::gotoAzimuth]  nPos : %d\n", timestamp, nPos);
+    fflush(Logfile);
+#endif
+
+    nErr = goToDomeAzimuth(nPos);
     m_dGotoAz = dNewAz;
 
     return nErr;
 }
+
+int CDomePro::gotoElevation(double dNewEl)
+{
+
+    int nErr = DP2_OK;
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    m_nTargetAdc = (int) floor(0.5 + ((m_Shutter1CloseAngle - dNewEl) * m_ADC_Ratio1));
+
+    nErr = goToDomeElevation(m_nTargetAdc, 0);
+
+    m_dGotoEl = dNewEl;
+
+    return nErr;
+}
+
 
 int CDomePro::openDomeShutters()
 {
@@ -405,6 +451,10 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
     return nErr;
 }
 
+int CDomePro::getModelType()
+{
+    return m_nModel;
+}
 
 int CDomePro::getModuleType(int &nModuleType)
 {
@@ -570,6 +620,12 @@ int CDomePro::isGoToComplete(bool &bComplete)
 
     nErr = isDomeMoving(bIsMoving);
     if(nErr) {
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] bIsMoving   =  %d\n", timestamp, bIsMoving);
+#endif
         return nErr;
         }
 
@@ -591,8 +647,15 @@ int CDomePro::isGoToComplete(bool &bComplete)
     fflush(Logfile);
 #endif
 
-    if ((floor(m_dGotoAz) <= floor(dDomeAz)+1) && (floor(m_dGotoAz) >= floor(dDomeAz)-1))
+    if ((floor(m_dGotoAz) <= floor(dDomeAz)+2) && (floor(m_dGotoAz) >= floor(dDomeAz)-2)) {
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] Goto finished\n", timestamp);
+#endif
         bComplete = true;
+    }
     else {
         // we're not moving and we're not at the final destination !!!
         if (m_bDebugLog) {
@@ -601,6 +664,33 @@ int CDomePro::isGoToComplete(bool &bComplete)
         }
         bComplete = false;
         nErr = ERR_CMDFAILED;
+    }
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] bComplete   =  %d\n", timestamp, bComplete);
+#endif
+
+    return nErr;
+}
+
+int CDomePro::isGoToElComplete(bool &bComplete)
+{
+    int nErr = 0;
+    int nADC;
+
+    bComplete = false;
+    if(!m_bIsConnected)
+        return NOT_CONNECTED;
+
+    nErr = getDomeShutter1_ADC(nADC);
+    if(nErr)
+        return nErr;
+
+    if(m_nTargetAdc == nADC) {
+        bComplete = true;
     }
 
     return nErr;
@@ -827,12 +917,11 @@ int CDomePro::setHomeAz(double dAz)
     int nErr = DP2_OK;
     int nPos;
 
+    m_dHomeAz = dAz;
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    AzToTicks(dAz, nPos);
-    setDomeHomeAzimuth(nPos);
-    m_dHomeAz = dAz;
     return nErr;
 }
 
@@ -841,7 +930,7 @@ int CDomePro::setDomeAzCoast(double dAz)
     int nErr = DP2_OK;
     int nPos;
 
-    AzToTicks(dAz, nPos);
+    nPos = (int) ((16385/360) * dAz);
     nErr = setDomeAzCoast(nPos);
     return nErr;
 
@@ -856,7 +945,7 @@ int CDomePro::getDomeAzCoast(double &dAz)
     if(nErr)
         return nErr;
 
-    TicksToAz(nPos, dAz);
+    dAz = (nPos/16385.0) * 360.0;
 
     return nErr;
 }
@@ -870,10 +959,20 @@ int CDomePro::setParkAz(double dAz)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    AzToTicks(dAz, nPos);
-    setDomeParkAzimuth(nPos);
-
     m_dParkAz = dAz;
+
+    AzToTicks(dAz, nPos);
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::setParkAz] nPos : %d\n", timestamp, nPos);
+    fprintf(Logfile, "[%s] [CDomePro::setParkAz] dAz : %3.3f\n", timestamp, dAz);
+    fflush(Logfile);
+#endif
+
+    setDomeParkAzimuth(nPos);
     return nErr;
 }
 
@@ -901,6 +1000,29 @@ int CDomePro::getCurrentShutterState()
 
     return m_nShutterState;
 }
+
+void CDomePro::setShutterAngleCalibration(int nShutter1OpenAngle, int nShutter1rOpenAngleADC,
+                                int nShutter1CloseAngle, int nShutter1CloseAngleADC,
+                                int nShutter2OpenAngle, int nShutter2rOpenAngleADC,
+                                int nShutter2CloseAngle, int nShutter2CloseAngleADC,
+                                bool bShutterGotoEnabled)
+{
+    m_Shutter1OpenAngle = nShutter1OpenAngle;
+    m_Shutter1OpenAngle_ADC = nShutter1rOpenAngleADC;
+    m_Shutter1CloseAngle = nShutter1CloseAngle;
+    m_Shutter1CloseAngle_ADC = nShutter1CloseAngleADC;
+    m_ADC_Ratio1 = (m_Shutter1OpenAngle_ADC - m_Shutter1CloseAngle_ADC) / (m_Shutter1OpenAngle - m_Shutter1CloseAngle);
+
+    m_Shutter2OpenAngle = nShutter2OpenAngle;
+    m_Shutter2OpenAngle_ADC = nShutter2rOpenAngleADC;
+    m_Shutter2CloseAngle = nShutter2CloseAngle;
+    m_Shutter2CloseAngle_ADC = nShutter2CloseAngleADC;
+    m_ADC_Ratio2 = (m_Shutter2OpenAngle_ADC - m_Shutter2CloseAngle_ADC) / (m_Shutter2OpenAngle - m_Shutter2CloseAngle);
+
+    m_bShutterGotoEnabled = bShutterGotoEnabled;
+
+}
+
 
 void CDomePro::setDebugLog(bool bEnable)
 {
@@ -989,7 +1111,7 @@ int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
             return nErr;
         }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 4
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
@@ -1129,6 +1251,16 @@ int CDomePro::getDomeAzPosition(double &dDomeAz)
 
     m_dCurrentAzPosition = dDomeAz;
 
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] nTmp = %s\n", timestamp, szResp);
+    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] nTmp = %d\n", timestamp, nTmp);
+    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] dDomeAz = %3.2f\n", timestamp, dDomeAz);
+    fflush(Logfile);
+#endif
+
     return nErr;
 }
 
@@ -1159,13 +1291,8 @@ int CDomePro::getDomeEl(double &dDomeEl)
 int CDomePro::getDomeHomeAz(double &dAz)
 {
     int nErr = DP2_OK;
-    int nPos;
 
-    nErr = getDomeHomeAzimuth(nPos);
-    if(nErr)
-        return nErr;
-
-    TicksToAz(nPos, dAz);
+    dAz = m_dHomeAz;
 
     return nErr;
 }
@@ -1183,7 +1310,6 @@ int CDomePro::getDomeParkAz(double &dAz)
 
     return nErr;
 }
-
 
 int CDomePro::getDomeShutterStatus(int &nState)
 {
@@ -1564,7 +1690,15 @@ int CDomePro::setDomeHomeAzimuth(int nPos)
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
-    
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::setDomeHomeAzimuth] nPos : %d\n", timestamp, nPos);
+    fflush(Logfile);
+#endif
+
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSha0x%08X;", nPos);
     nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
 
@@ -1617,6 +1751,14 @@ int CDomePro::getDomeHomeAzimuth(int &nPos)
 
     // convert result hex string to long
     nPos = (int)strtoul(szResp, NULL, 16);
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::getDomeHomeAzimuth] szResp : %s\n", timestamp, szResp);
+    fprintf(Logfile, "[%s] [CDomePro::getDomeHomeAzimuth] nPos   : %d\n", timestamp, nPos);
+    fflush(Logfile);
+#endif
 
     return nErr;
 }
@@ -1647,6 +1789,57 @@ int CDomePro::goToDomeAzimuth(int nPos)
     return nErr;
 }
 
+int CDomePro::goToDomeElevation(int nADC1, int nADC2)
+{
+    int nErr = DP2_OK;
+
+    if(nADC1 < 0 && nADC2> 4095)
+        return COMMAND_FAILED;
+
+    if(nADC2 < 0 && nADC2> 4095)
+        return COMMAND_FAILED;
+
+    nErr = GoToDomeShutter1_ADC(nADC1);
+    if(nErr)
+        return nErr;
+    nErr = GoToDomeShutter1_ADC(nADC2);
+    if(nErr)
+        return nErr;
+
+    return nErr;
+}
+
+int CDomePro::GoToDomeShutter1_ADC(int nADC)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(nADC < 0 && nADC> 4095)
+        return COMMAND_FAILED;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg10x%08X;", nADC);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+int CDomePro::GoToDomeShutter2_ADC(int nADC)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(nADC < 0 && nADC> 4095)
+        return COMMAND_FAILED;
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg20x%08X;", nADC);
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+}
+
+
 int CDomePro::setDomeParkAzimuth(int nPos)
 {
     int nErr = DP2_OK;
@@ -1655,6 +1848,14 @@ int CDomePro::setDomeParkAzimuth(int nPos)
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::setDomeParkAzimuth] nPos : %d\n", timestamp, nPos);
+    fflush(Logfile);
+#endif
 
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSpa0x%08X;", nPos);
     nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
@@ -1673,6 +1874,15 @@ int CDomePro::getDomeParkAzimuth(int &nPos)
 
     // convert result hex string to long
     nPos = (int)strtoul(szResp, NULL, 16);
+
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [CDomePro::getDomeParkAzimuth] szResp : %s\n", timestamp, szResp);
+    fprintf(Logfile, "[%s] [CDomePro::getDomeParkAzimuth] nPos : %d\n", timestamp, nPos);
+    fflush(Logfile);
+#endif
 
     return nErr;
 }
@@ -2368,31 +2578,8 @@ int CDomePro::stopDomeShutter2(void)
     return nErr;
 }
 
-int CDomePro::goToDomeShutter1_ADC(int nPos)
-{
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg10x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
-    return nErr;
-}
-
-int CDomePro::goToDomeShutter2_ADC(int nPos)
-{
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg20x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
-    return nErr;
-}
-
-int CDomePro::getDomeShutter1_AltitudeADC(int &nPos)
+int CDomePro::getDomeShutter1_ADC(int &nPos)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -2407,7 +2594,7 @@ int CDomePro::getDomeShutter1_AltitudeADC(int &nPos)
     return nErr;
 }
 
-int CDomePro::getDomeShutter2_AltitudeADC(int &nPos)
+int CDomePro::getDomeShutter2_ADC(int &nPos)
 {
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -2781,4 +2968,5 @@ void  CDomePro::hexdump(const char* inputData, char *outBuffer, int size)
     }
     *buf = 0;
 }
+
 

@@ -153,9 +153,9 @@
       <property name="geometry">
        <rect>
         <x>16</x>
-        <y>40</y>
+        <y>32</y>
         <width>360</width>
-        <height>192</height>
+        <height>200</height>
        </rect>
       </property>
       <property name="title">
@@ -241,6 +241,9 @@
        </item>
       </widget>
       <widget class="QCheckBox" name="checkBox_4">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
        <property name="geometry">
         <rect>
          <x>16</x>
@@ -257,7 +260,7 @@
        <property name="geometry">
         <rect>
          <x>16</x>
-         <y>160</y>
+         <y>168</y>
          <width>184</width>
          <height>24</height>
         </rect>
@@ -270,13 +273,13 @@
        <property name="geometry">
         <rect>
          <x>16</x>
-         <y>136</y>
+         <y>144</y>
          <width>208</width>
-         <height>32</height>
+         <height>24</height>
         </rect>
        </property>
        <property name="text">
-        <string>Sutter operate only at home</string>
+        <string>Shutter operate only at home</string>
        </property>
       </widget>
      </widget>
@@ -507,6 +510,9 @@
        <property name="maximum">
         <number>4095</number>
        </property>
+       <property name="value">
+        <number>3000</number>
+       </property>
       </widget>
       <widget class="QSpinBox" name="spinBox_6">
        <property name="geometry">
@@ -522,6 +528,9 @@
        </property>
        <property name="maximum">
         <number>4095</number>
+       </property>
+       <property name="value">
+        <number>500</number>
        </property>
       </widget>
       <widget class="QSpinBox" name="spinBox_7">
@@ -539,6 +548,9 @@
        <property name="maximum">
         <number>4095</number>
        </property>
+       <property name="value">
+        <number>3000</number>
+       </property>
       </widget>
       <widget class="QSpinBox" name="spinBox_8">
        <property name="geometry">
@@ -554,6 +566,9 @@
        </property>
        <property name="maximum">
         <number>4095</number>
+       </property>
+       <property name="value">
+        <number>500</number>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox">
