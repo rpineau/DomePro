@@ -723,12 +723,11 @@ int X2Dome::doShutterDialogEvents(X2GUIExchangeInterface* uiex, const char* pszE
 }
 
 //
-// Dome timout and automatic closure UI
+// Dome timeout and automatic closure UI
 //
 int X2Dome::doDomeProTimeouts(bool& bPressedOK)
 {
     int nErr = SB_OK;
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
     int nTmp;
     bool bTmp;
 
@@ -846,8 +845,6 @@ int X2Dome::doDomeProTimeouts(bool& bPressedOK)
 int X2Dome::doTimeoutsDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
     int nErr = SB_OK;
-    printf("[doTimeoutsDialogEvents] pszEvent : %s\n", pszEvent);
-
     return nErr;
 }
 
@@ -857,6 +854,10 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
     X2ModalUIUtil uiutil(this, GetTheSkyXFacadeForDrivers());
     X2GUIInterface*                    ui = uiutil.X2UI();
     X2GUIExchangeInterface*            dx = NULL;
+    double dTmp;
+    int nTmp;
+    int nCPR;
+    char szBuffer[SERIAL_BUFFER_SIZE];
 
     bPressedOK = false;
     if (NULL == ui)
@@ -871,9 +872,59 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 
     m_nCurrentDialog = DIAG;
 
+    if(m_bLinked) {
+        m_DomePro.getDomeSupplyVoltageAzimuthL(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(AZ_SUPPLY_VOLTAGE, szBuffer);
+
+        m_DomePro.getDomeAzimuthMotorADC(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(AZ_MOTOR_CURRENT, szBuffer);
+
+        m_DomePro.getDomeAzimuthTempADC(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(AZ_TEMP, szBuffer);
+
+        m_DomePro.getDomeAzDiagPosition(nTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
+        dx->setText(AZ_DIAG_COUNT, szBuffer);
+
+        m_DomePro.getDomeAzCPR(nCPR);
+        dTmp = (nTmp * 360.0 / nCPR);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(AZ_DIAG_DEG, szBuffer);
+
+        m_DomePro.getDomeSupplyVoltageShutterL(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(SHUT_SUPPLY_VOLTAGE, szBuffer);
+
+        m_DomePro.getDomeShutterMotorADC(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(SHUT_SUPPLY_CURRENT, szBuffer);
+
+        m_DomePro.getDomeShutterTempADC(dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        dx->setText(SHUT_TEMPERATURE, szBuffer);
+
+        m_DomePro.getDomeLinkErrCnt(nTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
+        dx->setText(NB_REF_LINK_ERROR, szBuffer);
+    }
+    else {
+
+    }
+
     nErr = ui->exec(bPressedOK);
     if (nErr )
         return nErr;
+
+    //Retreive values from the user interface
+    if (bPressedOK)
+    {
+        if(m_bLinked)
+        {
+        }
+    }
 
     m_nCurrentDialog = MAIN;
     return nErr;

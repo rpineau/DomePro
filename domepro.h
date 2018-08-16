@@ -200,6 +200,9 @@ public:
     int             setShutterAutoCloseEnabled(bool bEnable);
     int             getShutterAutoCloseEnabled(bool &bEnable);
 
+    int             getDomeAzDiagPosition(int &nValue);
+    int             clearDomeAzDiagPosition(void);
+
     // not yet implemented in the firmware
     int             setDomeShutOpAtHome(bool bEnable);
     int             getDomeShutOpAtHome(bool &bEnable);
@@ -279,8 +282,6 @@ protected:
 
     int             setDomeAzCoast(int nValue);
     int             getDomeAzCoast(int &nValue);
-    int             getDomeAzDiagPosition(int &nValue);
-    int             clearDomeAzDiagPosition(void);
     int             getDomeAzMoveMode(int &mode);
     int             getDomeLimits(void);
 

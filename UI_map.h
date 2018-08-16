@@ -108,7 +108,7 @@
 #define AX_DIAG_DEG_CLEAN	"pushButton_2"
 // Shutter
 #define SHUT_SUPPLY_VOLTAGE	"label_5"
-#define SHUT_SUPPLY_CURRECT	"label_18"
+#define SHUT_SUPPLY_CURRENT	"label_18"
 #define SHUT_TEMPERATURE	"label_16"
 #define NB_REF_LINK_ERROR	"label_20"
 #define RF_LINK_ERROR_CLEAR	"pushButton_3"
