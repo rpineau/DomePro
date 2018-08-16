@@ -16,6 +16,7 @@
 #define L_CPR_VALUE             "label_6"
 #define ENCODDER_POLARITY       "checkBox_2"
 #define SET_AZIMUTH_CPR         "pushButton_6"
+#define IS_AT_HOME              "isAtHome"
 
 // Homing
 #define HOMING_DIR		"comboBox_3"

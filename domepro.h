@@ -60,7 +60,7 @@
 enum DomePro2_Module {MODULE_AZ = 0, MODULE_SHUT, MODULE_UKNOWN};
 enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
-enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING, PARKING, NONE};
+enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING, PARKING, NONE, CLEARING_RIGHT, CLEARING_LEFT};
 
 enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED, INVALID_COMMAND};
 
@@ -126,7 +126,13 @@ public:
     int isFindHomeComplete(bool &complete);
     int isLearningCPRComplete(bool &complete);
     int isPassingHomeComplete(bool &bComplete);
-    
+
+    int isDomeAtHome(bool &bAtHome);
+    // movements
+    int isDomeMoving(bool &bIsMoving);
+    int setDomeLeftOn(void);
+    int setDomeRightOn(void);
+
 
     // getter/setter
     int getDomeHomeAz(double &dAz);
@@ -190,6 +196,9 @@ public:
     int             getDomeShutCloseOnClientTimeOut(bool &bEnable);
     int             setDomeShutCloseClientTimeOut(int nTimeout);
     int             getDomeShutCloseClientTimeOut(int &nTimeout);
+
+    int             setShutterAutoCloseEnabled(bool bEnable);
+    int             getShutterAutoCloseEnabled(bool &bEnable);
 
     // not yet implemented in the firmware
     int             setDomeShutOpAtHome(bool bEnable);
@@ -257,14 +266,7 @@ protected:
     void            AzToTicks(double pdAz, int &ticks);
     void            TicksToAz(int ticks, double &pdAz);
 
-    // movements
-    int             setDomeLeftOn(void);
-    int             setDomeRightOn(void);
     int             killDomeAzimuthMovement(void);
-
-    // command completion/state
-    int             isDomeMoving(bool &bIsMoving);
-    int             isDomeAtHome(bool &bAtHome);
 
     // DomePro getter / setter
 

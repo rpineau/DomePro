@@ -2140,7 +2140,7 @@ int CDomePro::getDomeShutter2_OpTimeOut(int &nTimeout)
     int nErr = DP2_OK;
     char szResp[SERIAL_BUFFER_SIZE];
 
-    nErr = domeCommand("!DGt1;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGt2;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
@@ -2337,6 +2337,40 @@ int CDomePro::getDomeShutCloseClientTimeOut(int &nTimeout)
     
     return nErr;
 }
+
+int CDomePro::setShutterAutoCloseEnabled(bool bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(bEnable)
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSanYes;");
+    else
+        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSanNo;");
+
+    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+
+    return nErr;
+
+}
+
+int CDomePro::getShutterAutoCloseEnabled(bool &bEnable)
+{
+    int nErr = DP2_OK;
+    char szResp[SERIAL_BUFFER_SIZE];
+
+    bEnable = false;
+
+    nErr = domeCommand("!DGan;", szResp, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    if(strstr(szResp,"Yes"))
+        bEnable = true;
+
+    return nErr;
+}
+
 
 #pragma mark not yet implemented in the firmware
 int CDomePro::setDomeShutOpAtHome(bool bEnable)
