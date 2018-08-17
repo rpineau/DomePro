@@ -874,15 +874,15 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 
     if(m_bLinked) {
         m_DomePro.getDomeSupplyVoltageAzimuthL(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f V", dTmp);
         dx->setText(AZ_SUPPLY_VOLTAGE, szBuffer);
 
         m_DomePro.getDomeAzimuthMotorADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f A", dTmp);
         dx->setText(AZ_MOTOR_CURRENT, szBuffer);
 
         m_DomePro.getDomeAzimuthTempADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f ºC", dTmp);
         dx->setText(AZ_TEMP, szBuffer);
 
         m_DomePro.getDomeAzDiagPosition(nTmp);
@@ -891,19 +891,19 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 
         m_DomePro.getDomeAzCPR(nCPR);
         dTmp = (nTmp * 360.0 / nCPR);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2fº", dTmp);
         dx->setText(AZ_DIAG_DEG, szBuffer);
 
         m_DomePro.getDomeSupplyVoltageShutterL(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f V", dTmp);
         dx->setText(SHUT_SUPPLY_VOLTAGE, szBuffer);
 
         m_DomePro.getDomeShutterMotorADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f A", dTmp);
         dx->setText(SHUT_SUPPLY_CURRENT, szBuffer);
 
         m_DomePro.getDomeShutterTempADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f", dTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f ºC", dTmp);
         dx->setText(SHUT_TEMPERATURE, szBuffer);
 
         m_DomePro.getDomeLinkErrCnt(nTmp);
@@ -918,14 +918,6 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
     if (nErr )
         return nErr;
 
-    //Retreive values from the user interface
-    if (bPressedOK)
-    {
-        if(m_bLinked)
-        {
-        }
-    }
-
     m_nCurrentDialog = MAIN;
     return nErr;
 }
@@ -936,15 +928,30 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 int X2Dome::doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
     int nErr = SB_OK;
+    char szBuffer[SERIAL_BUFFER_SIZE];
+    double dTmp;
+    int nTmp;
+    int nCPR;
 
 
-    if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) ) {
-    }
+    if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) || !strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED)) {
+        nErr = m_DomePro.clearDomeAzDiagPosition();
+        nErr |= m_DomePro.getDomeAzDiagPosition(nTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
+        uiex->setText(AZ_DIAG_COUNT, szBuffer);
 
-    if (!strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED)) {
+        nErr |= m_DomePro.getDomeAzCPR(nCPR);
+        dTmp = (nTmp * 360.0 / nCPR);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2fº", dTmp);
+        uiex->setText(AZ_DIAG_DEG, szBuffer);
+
     }
 
     if (!strcmp(pszEvent, CLEAR_RFLINK_ERRORS_CLICKED)) {
+        nErr = m_DomePro.clearDomeLinkErrCnt();
+        nErr |= m_DomePro.getDomeLinkErrCnt(nTmp);
+        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
+        uiex->setText(NB_REF_LINK_ERROR, szBuffer);
     }
 
     return nErr;

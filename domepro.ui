@@ -202,9 +202,9 @@
        <widget class="QPushButton" name="pushButton_6">
         <property name="geometry">
          <rect>
-          <x>96</x>
+          <x>72</x>
           <y>184</y>
-          <width>152</width>
+          <width>168</width>
           <height>24</height>
          </rect>
         </property>
@@ -389,7 +389,7 @@
         <x>152</x>
         <y>8</y>
         <width>264</width>
-        <height>145</height>
+        <height>148</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_4">
