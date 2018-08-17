@@ -14,6 +14,7 @@
 #include <memory.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 #ifdef SB_MAC_BUILD
 #include <unistd.h>
 #endif
