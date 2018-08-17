@@ -28,7 +28,7 @@
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"
 
-#define ATCL_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+// #define ATCL_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 5000

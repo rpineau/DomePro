@@ -915,7 +915,6 @@ int CDomePro::isPassingHomeComplete(bool &bComplete)
 int CDomePro::setHomeAz(double dAz)
 {
     int nErr = DP2_OK;
-    int nPos;
 
     m_dHomeAz = dAz;
 
