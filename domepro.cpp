@@ -2077,7 +2077,7 @@ int CDomePro::getDomeSupplyVoltageAzimuthM(double &dVolts)
     // convert result hex string
     ulTmp = (int)strtoul(szResp, NULL, 16);
 
-    dVolts = (double)ulTmp * 1; // TBD
+    dVolts = (double)ulTmp * 0.00812763;
 
     return nErr;
 }
@@ -2097,7 +2097,7 @@ int CDomePro::getDomeSupplyVoltageShutterM(double &dVolts)
     // convert result hex string
     ulTmp = (int)strtoul(szResp, NULL, 16);
 
-    dVolts = (double)ulTmp * 1; // TBD
+    dVolts = (double)ulTmp * 0.00812763;
 
     return nErr;
 }
