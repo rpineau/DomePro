@@ -136,7 +136,7 @@ public:
     virtual bool			isBaudRateFixed() const		{return true;}
 
     virtual SerXInterface::Parity	parity() const				{return SerXInterface::B_NOPARITY;}
-    virtual void					setParity(const SerXInterface::Parity& parity){parity;};
+    virtual void					setParity(const SerXInterface::Parity& parity){};
     virtual bool					isParityFixed() const		{return true;}
 
 
@@ -172,7 +172,7 @@ private:
     int doDomeProDiag(bool& bPressedOK);
     int doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent);
 
-    void setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabeled);
+    void setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabled);
     
     void portNameOnToCharPtr(char* pszPort, const int& nMaxSize) const;
 

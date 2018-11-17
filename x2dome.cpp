@@ -485,16 +485,16 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     return nErr;
 }
 
-void X2Dome::setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabeled)
+void X2Dome::setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enabled)
 {
-    uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, enabeled);
-    uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, enabeled);
-    uiex->setEnabled(SET_AZIMUTH_CPR, enabeled);
-    uiex->setEnabled(SHUTTER_BUTTON, enabeled);
-    uiex->setEnabled(TIMEOUTS_BUTTON, enabeled);
-    uiex->setEnabled(DIAG_BUTTON, enabeled);
-    uiex->setEnabled(BUTTON_OK, enabeled);
-    uiex->setEnabled(BUTTON_CANCEL, enabeled);
+    uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, enabled);
+    uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, enabled);
+    uiex->setEnabled(SET_AZIMUTH_CPR, enabled);
+    uiex->setEnabled(SHUTTER_BUTTON, enabled);
+    uiex->setEnabled(TIMEOUTS_BUTTON, enabled);
+    uiex->setEnabled(DIAG_BUTTON, enabled);
+    uiex->setEnabled(BUTTON_OK, enabled);
+    uiex->setEnabled(BUTTON_CANCEL, enabled);
 
 }
 
