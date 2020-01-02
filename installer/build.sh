@@ -1,5 +1,12 @@
 #!/bin/bash
 
+PACKAGE_NAME="DomePro_X2.pkg"
+BUNDLE_NAME="org.rti-zone.DomeProX2"
+
+if [ ! -z "$app_id_signature" ]; then
+    codesign -f -s "$app_id_signature" --verbose ../build/Release/libDomePro.dylib
+fi
+
 mkdir -p ROOT/tmp/DomePro_X2/
 cp "../domepro.ui" ROOT/tmp/DomePro_X2/
 cp "../domeprodiag.ui" ROOT/tmp/DomePro_X2/
@@ -8,9 +15,6 @@ cp "../dometimeouts.ui" ROOT/tmp/DomePro_X2/
 cp "../Astrometric.png" ROOT/tmp/DomePro_X2/
 cp "../domelist DomePro.txt" ROOT/tmp/DomePro_X2/
 cp "../build/Release/libDomePro.dylib" ROOT/tmp/DomePro_X2/
-
-PACKAGE_NAME="DomePro_X2.pkg"
-BUNDLE_NAME="org.rti-zone.DomeProX2"
 
 if [ ! -z "$installer_signature" ]; then
 	# signed package using env variable installer_signature

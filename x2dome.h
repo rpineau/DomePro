@@ -24,7 +24,7 @@
 #include "domepro.h"
 #include "UI_map.h"
 
-#define DRIVER_VERSION      1.0
+#define DRIVER_VERSION      1.01
 
 #define PARENT_KEY			"DomePro"
 #define CHILD_KEY_PORTNAME	"PortName"
