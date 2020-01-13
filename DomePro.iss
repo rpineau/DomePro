@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Astrometric Instruments DomePro X2 Driver"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.01"
 #define MyAppPublisher "RTI-Zone"
 #define MyAppURL "https://rti-zone.org"
 
@@ -45,6 +45,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "domelist DomePro.txt"; DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
 Source: "libDomePro\Release\libDomePro.dll"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
 Source: "domepro.ui"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
+Source: "domeprodiag.ui"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
+Source: "domeshutter.ui"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
+Source: "dometimeouts.ui"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
 Source: "Astrometric.png"; DestDir: "{app}\Plugins\DomePlugIns"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 ; msgBox('Do you want to install MyProg.exe to ' + ExtractFilePath(CurrentFileName) + '?', mbConfirmation, MB_YESNO)

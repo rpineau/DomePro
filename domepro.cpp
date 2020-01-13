@@ -23,6 +23,8 @@ CDomePro::CDomePro()
     m_dCurrentAzPosition = 0.0;
     m_dCurrentElPosition = 0.0;
 
+    m_dAzCoast = 0.0;
+    
     m_bCalibrating = false;
 
     m_bHasShutter = false;
@@ -164,6 +166,7 @@ int CDomePro::Connect(const char *pszPort)
     
     getDomeAzCPR(m_nNbStepPerRev);
     getDomeParkAz(m_dParkAz);
+    getDomeAzCoast(m_dAzCoast);
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
@@ -274,7 +277,7 @@ int CDomePro::gotoAzimuth(double dNewAz)
 
     nErr = goToDomeAzimuth(nPos);
     m_dGotoAz = dNewAz;
-
+    m_nGotoTries = 0;
     return nErr;
 }
 
@@ -647,7 +650,7 @@ int CDomePro::isGoToComplete(bool &bComplete)
     fflush(Logfile);
 #endif
 
-    if ((floor(m_dGotoAz) <= floor(dDomeAz)+2) && (floor(m_dGotoAz) >= floor(dDomeAz)-2)) {
+    if ((floor(m_dGotoAz) <= floor(dDomeAz)+m_dAzCoast) && (floor(m_dGotoAz) >= floor(dDomeAz)-m_dAzCoast)) {
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
@@ -655,6 +658,7 @@ int CDomePro::isGoToComplete(bool &bComplete)
         fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] Goto finished\n", timestamp);
 #endif
         bComplete = true;
+        m_nGotoTries = 0;
     }
     else {
         // we're not moving and we're not at the final destination !!!
@@ -662,8 +666,16 @@ int CDomePro::isGoToComplete(bool &bComplete)
             snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f\n", ceil(dDomeAz), ceil(m_dGotoAz));
             m_pLogger->out(m_szLogBuffer);
         }
-        bComplete = false;
-        nErr = ERR_CMDFAILED;
+        if(m_nGotoTries == 0) {
+            bComplete = false;
+            m_nGotoTries = 1;
+            gotoAzimuth(m_dGotoAz);
+        }
+        else {
+            m_nGotoTries = 0;
+            bComplete = false;
+            nErr = ERR_CMDFAILED;
+        }
     }
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
@@ -838,15 +850,37 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
         bComplete = true;
     }
     else {
-        // we're not moving and we're not at the home position !!!
-        if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isFindHomeComplete] Not moving and not at home !!!\n");
-            m_pLogger->out(m_szLogBuffer);
+        // did we just pass home
+        if ((ceil(m_dCurrentAzPosition) <= ceil(m_dHomeAz)+m_dAzCoast) && (ceil(m_dCurrentAzPosition) >= ceil(m_dHomeAz)-m_dAzCoast)) {
+            m_nHomingTries = 0;
+            gotoAzimuth(m_dHomeAz); // back out a bit
+            bComplete = true;
+#if defined ACE_DEBUG && ACE_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [CDomePro::isFindHomeComplete] Close to home, backing out to %3.2f !!!\n", timestamp, m_dHomeAz);
+            fflush(Logfile);
+#endif
         }
-        bComplete = false;
-        m_bHomed = false;
-        m_bParked = false;
-        nErr = ERR_CMDFAILED;
+        else {
+            // we're not moving and we're not at the home position !!!
+            if (m_bDebugLog) {
+                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isFindHomeComplete] Not moving and not at home !!!\n");
+                m_pLogger->out(m_szLogBuffer);
+            }
+            if(m_nHomingTries == 0) {
+                bComplete = false;
+                m_nHomingTries = 1;
+                gotoAzimuth(m_dHomeAz);
+            }
+            else {
+                bComplete = false;
+                m_bHomed = false;
+                m_bParked = false;
+                nErr = ERR_CMDFAILED;
+            }
+        }
     }
 
     return nErr;
@@ -929,6 +963,7 @@ int CDomePro::setDomeAzCoast(double dAz)
     int nErr = DP2_OK;
     int nPos;
 
+    m_dAzCoast = dAz;
     nPos = (int) ((16385/360) * dAz);
     nErr = setDomeAzCoast(nPos);
     return nErr;
@@ -945,7 +980,6 @@ int CDomePro::getDomeAzCoast(double &dAz)
         return nErr;
 
     dAz = (nPos/16385.0) * 360.0;
-
     return nErr;
 }
 
@@ -2043,7 +2077,7 @@ int CDomePro::getDomeSupplyVoltageAzimuthM(double &dVolts)
     // convert result hex string
     ulTmp = (int)strtoul(szResp, NULL, 16);
 
-    dVolts = (double)ulTmp * 1; // TBD
+    dVolts = (double)ulTmp * 0.00812763;
 
     return nErr;
 }
@@ -2063,7 +2097,7 @@ int CDomePro::getDomeSupplyVoltageShutterM(double &dVolts)
     // convert result hex string
     ulTmp = (int)strtoul(szResp, NULL, 16);
 
-    dVolts = (double)ulTmp * 1; // TBD
+    dVolts = (double)ulTmp * 0.00812763;
 
     return nErr;
 }

@@ -489,7 +489,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>Dome Shutter/Roof seetings</string>
+       <string>Dome Shutter/Roof settings</string>
       </property>
      </widget>
      <widget class="QPushButton" name="pushButton_4">

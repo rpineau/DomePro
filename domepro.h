@@ -332,6 +332,7 @@ protected:
     int             m_nRightCPR;
     int             m_nLeftCPR;
     int             m_nLearning;
+    int             m_nHomingTries;
 
     double          m_dHomeAz;
     double          m_dParkAz;
@@ -339,8 +340,9 @@ protected:
     double          m_dCurrentElPosition;
     double          m_dGotoAz;
     double          m_dGotoEl;
+    double          m_dAzCoast;
     int             m_nTargetAdc;
-
+    int             m_nGotoTries;
 
     char            m_szFirmwareVersion[SERIAL_BUFFER_SIZE];
     int             m_nShutterState;
