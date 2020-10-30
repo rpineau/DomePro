@@ -30,16 +30,28 @@ echo "Installing in $PLUGINS_DIR/DomePlugIns/"
 
 cp "/tmp/DomePro_X2/domelist DomePro.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/domepro.ui"
 cp "/tmp/DomePro_X2/domepro.ui" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/domeprodiag.ui"
 cp "/tmp/DomePro_X2/domeprodiag.ui" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/domeshutter.ui"
 cp "/tmp/DomePro_X2/domeshutter.ui" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/dometimeouts.ui"
 cp "/tmp/DomePro_X2/dometimeouts.ui" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/Astrometric.png"
 cp "/tmp/DomePro_X2/Astrometric.png" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/DomePlugIns/libDomePro.dylib"
 cp "/tmp/DomePro_X2/libDomePro.dylib" "$PLUGINS_DIR/DomePlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
 
