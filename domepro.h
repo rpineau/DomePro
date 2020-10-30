@@ -31,6 +31,8 @@
 
 // #define ATCL_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
+#define DRIVER_VERSION      1.3
+
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 5000
 #define DP2_LOG_BUFFER_SIZE 256
