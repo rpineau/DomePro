@@ -498,7 +498,7 @@ int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 
     m_nMotorPolarity = nPolarity;
 
-    switch(m_nNbStepPerRev) {
+    switch(m_nMotorPolarity) {
         case POSITIVE :
             nErr = domeCommand("!DSmpPositive;", szResp, SERIAL_BUFFER_SIZE);
 
