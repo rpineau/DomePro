@@ -161,11 +161,10 @@ int CDomePro::Connect(const char *pszPort)
 
 
     // get dome home az and park az
-    setDomeHomeAzimuth(0); // we need to make sure we manage the offset to the Home position
-    setDomeParkAzimuth(0);
-    
-    getDomeAzCPR(m_nNbStepPerRev);
+    getDomeHomeAz(m_dHomeAz);
     getDomeParkAz(m_dParkAz);
+    // get dome CPR and coast
+    getDomeAzCPR(m_nNbStepPerRev);
     getDomeAzCoast(m_dAzCoast);
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
