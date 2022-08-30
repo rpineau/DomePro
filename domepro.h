@@ -317,6 +317,7 @@ protected:
     int             getDomeShutter1_ADC(int &nPos);
     int             getDomeShutter2_ADC(int &nPos);
 
+    bool            checkBoundaries(double dTargetAz, double dDomeAz, double nMargin=2.0);
 
     void            hexdump(const char *inputData, char *outBuffer, int size);
     

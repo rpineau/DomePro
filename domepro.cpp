@@ -642,14 +642,15 @@ int CDomePro::isGoToComplete(bool &bComplete)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz   =  %3.2f\n", timestamp, dDomeAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz =  %3.2f\n", timestamp, m_dGotoAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] floor(dDomeAz)   =  %3.2f\n", timestamp, floor(dDomeAz));
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] floor(m_dGotoAz) =  %3.2f\n", timestamp, floor(m_dGotoAz));
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz    =  %3.2f\n", timestamp, dDomeAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz  =  %3.2f\n", timestamp, m_dGotoAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz    =  %3.2f\n", timestamp, dDomeAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz  =  %3.2f\n", timestamp, m_dGotoAz);
+    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dAzCoast =  %3.2f\n", timestamp, m_dAzCoast);
     fflush(Logfile);
 #endif
 
-    if ((floor(m_dGotoAz) <= floor(dDomeAz)+m_dAzCoast) && (floor(m_dGotoAz) >= floor(dDomeAz)-m_dAzCoast)) {
+    if(checkBoundaries(m_dGotoAz, dDomeAz, m_dAzCoast+1)) {
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
@@ -662,7 +663,7 @@ int CDomePro::isGoToComplete(bool &bComplete)
     else {
         // we're not moving and we're not at the final destination !!!
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f\n", ceil(dDomeAz), ceil(m_dGotoAz));
+            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f, m_dAzCoast = %f\n", dDomeAz, m_dGotoAz, m_dAzCoast);
             m_pLogger->out(m_szLogBuffer);
         }
         if(m_nGotoTries == 0) {
@@ -785,8 +786,7 @@ int CDomePro::isParkComplete(bool &bComplete)
         return nErr;
     }
 
-    if ((floor(m_dParkAz) <= floor(dDomeAz)+1) && (floor(m_dParkAz) >= floor(dDomeAz)-1))
-    {
+    if(checkBoundaries(m_dParkAz, dDomeAz, m_dAzCoast+1)) {
         m_bParked = true;
         bComplete = true;
     }
@@ -850,7 +850,7 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
     }
     else {
         // did we just pass home
-        if ((ceil(m_dCurrentAzPosition) <= ceil(m_dHomeAz)+m_dAzCoast) && (ceil(m_dCurrentAzPosition) >= ceil(m_dHomeAz)-m_dAzCoast)) {
+        if(checkBoundaries(m_dHomeAz, m_dCurrentAzPosition, m_dAzCoast+1)) {
             m_nHomingTries = 0;
             gotoAzimuth(m_dHomeAz); // back out a bit
             bComplete = true;
@@ -3020,6 +3020,36 @@ int CDomePro::clearDomeLimitFault()
 
     nErr = domeCommand("!DClf;", szResp, SERIAL_BUFFER_SIZE);
     return nErr;
+}
+
+bool CDomePro::checkBoundaries(double dTargetAz, double dDomeAz, double nMargin)
+{
+    double highMark;
+    double lowMark;
+    double roundedTargetAz;
+
+    // we need to test "large" depending on the heading error and movement coasting
+    highMark = ceil(dDomeAz)+nMargin;
+    lowMark = ceil(dDomeAz)-nMargin;
+    roundedTargetAz = ceil(dTargetAz);
+
+    if(lowMark < 0 && highMark > 0) { // we're close to 0 degre but above 0
+        if((roundedTargetAz+2) >= 360)
+            roundedTargetAz = (roundedTargetAz+2)-360;
+        if ( (roundedTargetAz > lowMark) && (roundedTargetAz <= highMark)) {
+            return true;
+        }
+    }
+    if ( lowMark > 0 && highMark>360 ) { // we're close to 0 but from the other side
+        if( (roundedTargetAz+360) > lowMark && (roundedTargetAz+360) <= highMark) {
+            return true;
+        }
+    }
+    if (roundedTargetAz > lowMark && roundedTargetAz <= highMark) {
+        return true;
+    }
+
+    return false;
 }
 
 
