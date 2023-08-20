@@ -1041,12 +1041,9 @@ int CDomePro::isCloseComplete(bool &bComplete)
 
     err = getDomeShutterStatus(nState);
     if(err) {
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [isCloseComplete] error", timestamp);
-        fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isParkComplete] error." << std::endl;
+        m_sLogFile.flush();
 #endif
         return ERR_CMDFAILED;
     }
@@ -2015,12 +2012,9 @@ int CDomePro::getDomeLimits(void)
 
     nLimits = (uint16_t) std::stoi(sResp, NULL, 16);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [getDomeLimits] nLimits : %04X\n", timestamp, nLimits);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] nLimits : " << nLimits << std::endl;
+    m_sLogFile.flush();
 #endif
 
     m_nShutter1OpenedSwitchState = (nLimits & BitShutter1_Opened ? ACTIVE : INNACTIVE);

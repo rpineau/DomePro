@@ -312,8 +312,6 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
 {
     bool bComplete = false;
     int nErr = SB_OK;
-    char szErrorMessage[LOG_BUFFER_SIZE];
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
     std::stringstream sTmpBuf;
     bool bTmp;
 
@@ -343,8 +341,8 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
                         uiex->setEnabled(LEARN_AZIMUTH_CPR_RIGHT, true);
                         uiex->setEnabled(LEARN_AZIMUTH_CPR_LEFT, true);
                         uiex->setEnabled(BUTTON_OK, true);
-                        snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error learning dome CPR : Error %d", nErr);
-                        uiex->messageBox("DomePro Learn CPR", szErrorMessage);
+                        sTmpBuf << "Error learning dome CPR : Error " << nErr;
+                        uiex->messageBox("DomePro Learn CPR", sTmpBuf.str().c_str());
                         m_nLearningDomeCPR = NONE;
                         return nErr;
                     }
@@ -361,14 +359,12 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
                     switch (m_nLearningDomeCPR) {
                         case LEFT:
                             nTmp = m_DomePro.getLeftCPR();
-                            snprintf(szTmpBuf, SERIAL_BUFFER_SIZE, "%d", nTmp);
-                            uiex->setPropertyString(L_CPR_VALUE, "text", szTmpBuf);
+                            uiex->setPropertyString(L_CPR_VALUE, "text", std::to_string(nTmp).c_str());
                             break;
 
                         case RIGHT:
                             nTmp = m_DomePro.getRightCPR();
-                            snprintf(szTmpBuf, SERIAL_BUFFER_SIZE, "%d", nTmp);
-                            uiex->setPropertyString(R_CPR_VALUE, "text", szTmpBuf);
+                            uiex->setPropertyString(R_CPR_VALUE, "text", std::to_string(nTmp).c_str());
                             break;
                         default:
                             break;
@@ -443,22 +439,21 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
         if(m_bLinked) {
             nTmp = m_DomePro.getRightCPR();
             if(!nTmp) {
-                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , right value can't be 0");
-                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                uiex->messageBox("DomePro Set CPR", "Error setting dome CPR , right value can't be 0");
                 return nErr;
             }
 
             nTmp2 = m_DomePro.getLeftCPR();
             if(!nTmp) {
-                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR , left value can't be 0");
-                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                uiex->messageBox("DomePro Set CPR", "Error setting dome CPR , left value can't be 0");
                 return nErr;
             }
             nTmp =  (int)floor( 0.5 +(nTmp + nTmp2)/2);
             nErr = m_DomePro.setDomeAzCPR(nTmp);
             if(nErr) {
-                snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting dome CPR : Error %d", nErr);
-                uiex->messageBox("DomePro Set CPR", szErrorMessage);
+                std::stringstream().swap(sTmpBuf);
+                sTmpBuf << "Error setting dome CPR : Error " << nErr;
+                uiex->messageBox("DomePro Set CPR", sTmpBuf.str().c_str());
                 return nErr;
             }
             uiex->setPropertyInt(TICK_PER_REV, "value", nTmp);
@@ -861,7 +856,7 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
     double dTmp;
     int nTmp;
     int nCPR;
-    char szBuffer[SERIAL_BUFFER_SIZE];
+    std::stringstream sTmpBuf;
 
     bPressedOK = false;
     if (NULL == ui)
@@ -878,41 +873,47 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 
     if(m_bLinked) {
         m_DomePro.getDomeSupplyVoltageAzimuthL(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f V", dTmp);
-        dx->setText(AZ_SUPPLY_VOLTAGE, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " V";
+        dx->setText(AZ_SUPPLY_VOLTAGE, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeAzimuthMotorADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f A", dTmp);
-        dx->setText(AZ_MOTOR_CURRENT, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " A";
+        dx->setText(AZ_MOTOR_CURRENT, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeAzimuthTempADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f ºC", dTmp);
-        dx->setText(AZ_TEMP, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " ºC";
+        dx->setText(AZ_TEMP, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeAzDiagPosition(nTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
-        dx->setText(AZ_DIAG_COUNT, szBuffer);
+        dx->setText(AZ_DIAG_COUNT, std::to_string(dTmp).c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeAzCPR(nCPR);
         dTmp = (nTmp * 360.0 / nCPR);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2fº", dTmp);
-        dx->setText(AZ_DIAG_DEG, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " º";
+        dx->setText(AZ_DIAG_DEG, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeSupplyVoltageShutterL(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f V", dTmp);
-        dx->setText(SHUT_SUPPLY_VOLTAGE, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " V";
+        dx->setText(SHUT_SUPPLY_VOLTAGE, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeShutterMotorADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f A", dTmp);
-        dx->setText(SHUT_SUPPLY_CURRENT, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " A";
+        dx->setText(SHUT_SUPPLY_CURRENT, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeShutterTempADC(dTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2f ºC", dTmp);
-        dx->setText(SHUT_TEMPERATURE, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " ºC";
+        dx->setText(SHUT_TEMPERATURE, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
 
         m_DomePro.getDomeLinkErrCnt(nTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
-        dx->setText(NB_REF_LINK_ERROR, szBuffer);
+        dx->setText(NB_REF_LINK_ERROR, std::to_string(dTmp).c_str());
     }
     else {
 
@@ -932,7 +933,7 @@ int X2Dome::doDomeProDiag(bool& bPressedOK)
 int X2Dome::doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
     int nErr = SB_OK;
-    char szBuffer[SERIAL_BUFFER_SIZE];
+    std::stringstream sTmpBuf;
     double dTmp;
     int nTmp;
     int nCPR;
@@ -941,21 +942,19 @@ int X2Dome::doDiagDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     if (!strcmp(pszEvent, CLEAR_DIAG_COUNT_CLICKED) || !strcmp(pszEvent, CLEAR_DIAG_DEG_CLICKED)) {
         nErr = m_DomePro.clearDomeAzDiagPosition();
         nErr |= m_DomePro.getDomeAzDiagPosition(nTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
-        uiex->setText(AZ_DIAG_COUNT, szBuffer);
+        uiex->setText(AZ_DIAG_COUNT, std::to_string(nTmp).c_str());
 
         nErr |= m_DomePro.getDomeAzCPR(nCPR);
         dTmp = (nTmp * 360.0 / nCPR);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%3.2fº", dTmp);
-        uiex->setText(AZ_DIAG_DEG, szBuffer);
+        sTmpBuf << std::fixed << std::setprecision(2) << dTmp << " º";
+        uiex->setText(AZ_DIAG_DEG, sTmpBuf.str().c_str());
 
     }
 
     if (!strcmp(pszEvent, CLEAR_RFLINK_ERRORS_CLICKED)) {
         nErr = m_DomePro.clearDomeLinkErrCnt();
         nErr |= m_DomePro.getDomeLinkErrCnt(nTmp);
-        snprintf(szBuffer, LOG_BUFFER_SIZE, "%d", nTmp);
-        uiex->setText(NB_REF_LINK_ERROR, szBuffer);
+        uiex->setText(NB_REF_LINK_ERROR, std::to_string(nTmp).c_str());
     }
 
     return nErr;
@@ -1309,7 +1308,7 @@ void X2Dome::portNameOnToCharPtr(char* pszPort, const int& nMaxSize) const
     if (NULL == pszPort)
         return;
 
-    snprintf(pszPort, nMaxSize,DEF_PORT_NAME);
+    snprintf(pszPort, nMaxSize, DEF_PORT_NAME);
 
     if (m_pIniUtil)
         m_pIniUtil->readString(PARENT_KEY, CHILD_KEY_PORTNAME, pszPort, pszPort, nMaxSize);
