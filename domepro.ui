@@ -67,7 +67,7 @@
          <x>288</x>
          <y>24</y>
          <width>264</width>
-         <height>248</height>
+         <height>217</height>
         </rect>
        </property>
        <property name="title">
@@ -384,6 +384,19 @@
          <double>359.990000000000009</double>
         </property>
        </widget>
+      </widget>
+      <widget class="QLabel" name="powerGood">
+       <property name="geometry">
+        <rect>
+         <x>296</x>
+         <y>248</y>
+         <width>232</width>
+         <height>24</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Power Good input : OK</string>
+       </property>
       </widget>
      </widget>
      <widget class="QWidget" name="layoutWidget">

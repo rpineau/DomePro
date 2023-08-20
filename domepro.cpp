@@ -38,11 +38,11 @@ CDomePro::CDomePro()
     m_nRightCPR = 0;
 
     m_bShutterGotoEnabled = false;
-    
-    memset(m_szFirmwareVersion,0,SERIAL_BUFFER_SIZE);
-    memset(m_szLogBuffer,0,DP2_LOG_BUFFER_SIZE);
 
-#ifdef ATCL_DEBUG
+    m_sFirmware.clear();
+    m_sLogBuffer.clear();
+
+#ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
     m_sLogfilePath += getenv("HOMEPATH");
@@ -54,29 +54,160 @@ CDomePro::CDomePro()
     m_sLogfilePath = getenv("HOME");
     m_sLogfilePath += "/DomeProLog.txt";
 #endif
-    Logfile = fopen(m_sLogfilePath.c_str(), "w");
+    m_sLogFile.open(m_sLogfilePath, std::ios::out |std::ios::trunc);
 #endif
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CDomePro Constructor Called\n", timestamp);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [CRTIDome] Version " << std::fixed << std::setprecision(2) << PLUGIN_VERSION << " build " << __DATE__ << " " << __TIME__ << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [CRTIDome] Constructor Called." << std::endl;
+    m_sLogFile.flush();
 #endif
-
 
 }
 
 CDomePro::~CDomePro()
 {
-#ifdef	ATCL_DEBUG
-    if (Logfile)
-        fclose(Logfile);
+#ifdef	PLUGIN_DEBUG
+    if(m_sLogFile.is_open())
+        m_sLogFile.close();
 #endif
 }
 
-#pragma mark - Dome Communication
+#pragma mark - dome communication
+int CDomePro::domeCommand(const std::string sCmd, std::string &sResp, int nTimeout, char cEndOfResponse)
+{
+    int nErr = PLUGIN_OK;
+    unsigned long  ulBytesWrite;
+    std::string localResp;
+
+    if(!m_bIsConnected)
+        return ERR_COMMNOLINK;
+
+    m_pSerx->purgeTxRx();
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] Sending : '" << sCmd <<  "'" << std::endl;
+    m_sLogFile.flush();
+#endif
+    nErr = m_pSerx->writeFile((void *)(sCmd.c_str()), sCmd.size(), ulBytesWrite);
+    m_pSerx->flushTx();
+
+    if(nErr){
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] writeFile error : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+    // read response
+    nErr = readResponse(localResp, nTimeout, cEndOfResponse);
+    if(nErr)
+        return nErr;
+
+    if(!localResp.size())
+        sResp.assign(localResp);
+    else
+        sResp.clear();
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] response : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    return nErr;
+}
+
+int CDomePro::readResponse(std::string &sResp, int nTimeout, char cEndOfResponse)
+{
+    int nErr = PLUGIN_OK;
+    unsigned char pszBuf[SERIAL_BUFFER_SIZE];
+    unsigned long ulBytesRead = 0;
+    unsigned long ulTotalBytesRead = 0;
+    unsigned char *pszBufPtr;
+    int nBytesWaiting = 0 ;
+    int nbTimeouts = 0;
+
+    sResp.clear();
+    memset(pszBuf, 0, SERIAL_BUFFER_SIZE);
+    pszBufPtr = pszBuf;
+
+    do {
+        nErr = m_pSerx->bytesWaitingRx(nBytesWaiting);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting = " << nBytesWaiting << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting nErr = " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        if(!nBytesWaiting) {
+            nbTimeouts += MAX_READ_WAIT_TIMEOUT;
+            if(nbTimeouts >= nTimeout) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] bytesWaitingRx timeout, no data for" << nbTimeouts <<" ms" << std::endl;
+                m_sLogFile.flush();
+#endif
+                nErr = COMMAND_TIMEOUT;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(MAX_READ_WAIT_TIMEOUT));
+            continue;
+        }
+        nbTimeouts = 0;
+        if(ulTotalBytesRead + nBytesWaiting <= SERIAL_BUFFER_SIZE)
+            nErr = m_pSerx->readFile(pszBufPtr, nBytesWaiting, ulBytesRead, nTimeout);
+        else {
+            nErr = ERR_RXTIMEOUT;
+            break; // buffer is full.. there is a problem !!
+        }
+        if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile error." << std::endl;
+            m_sLogFile.flush();
+#endif
+            return nErr;
+        }
+
+        if (ulBytesRead != nBytesWaiting) { // timeout
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile Timeout Error." << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile nBytesWaiting = " << nBytesWaiting << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile ulBytesRead =" << ulBytesRead << std::endl;
+            m_sLogFile.flush();
+#endif
+        }
+
+        ulTotalBytesRead += ulBytesRead;
+        // check for  errors or single ACK
+        if(*pszBufPtr == ATCL_NACK) {
+            nErr = BAD_CMD_RESPONSE;
+            break;
+        }
+
+        if(*pszBufPtr == ATCL_ACK) {
+            nErr = PLUGIN_OK;
+            break;
+        }
+
+        pszBufPtr+=ulBytesRead;
+
+    } while (ulTotalBytesRead < SERIAL_BUFFER_SIZE  && *(pszBufPtr-1) != cEndOfResponse);
+
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] pszBuf = '" << pszBuf << "'" << std::endl;
+    m_sLogFile.flush();
+#endif
+
+
+    if(!ulTotalBytesRead)
+        nErr = COMMAND_TIMEOUT; // we didn't get an answer.. so timeout
+    else  if(*(pszBufPtr-1) == cEndOfResponse)
+        *(pszBufPtr-1) = 0; //remove the cEndOfResponse
+
+    sResp.assign((char *)pszBuf);
+    return nErr;
+}
+
+
 
 int CDomePro::Connect(const char *pszPort)
 {
@@ -86,79 +217,66 @@ int CDomePro::Connect(const char *pszPort)
     if(!m_pSerx)
         return ERR_COMMNOLINK;
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] Connect called.\n", timestamp);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Called." << std::endl;
+    m_sLogFile.flush();
 #endif
 
     // 19200 8N1
     nErr = m_pSerx->open(pszPort, 19200, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
     if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Connection failed, nErr = " << nErr <<  std::endl;
+        m_sLogFile.flush();
+#endif
         m_bIsConnected = false;
         return nErr;
     }
     m_bIsConnected = true;
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] connected to %s\n", timestamp, pszPort);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] connected to " << pszPort << std::endl;
+    m_sLogFile.flush();
 #endif
 
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Connected.\n");
-        m_pLogger->out(m_szLogBuffer);
+        m_sLogBuffer.assign("[Connect] Connected.");
+        m_pLogger->out(m_sLogBuffer.c_str());
 
-        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Getting Firmware.\n");
-        m_pLogger->out(m_szLogBuffer);
+        m_sLogBuffer.assign("[Connect] Getting Firmware.");
+        m_pLogger->out(m_sLogBuffer.c_str());
     }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] getting Firmware.\n", timestamp);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Getting Firmware." << std::endl;
+    m_sLogFile.flush();
 #endif
 
     // if this fails we're not properly connected.
-    nErr = getFirmwareVersion(m_szFirmwareVersion, SERIAL_BUFFER_SIZE);
+    nErr = getFirmwareVersion(m_sFirmware);
     if(nErr) {
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Error Getting Firmware.\n");
-            m_pLogger->out(m_szLogBuffer);
+            m_sLogBuffer.assign("[Connect] Error Getting Firmware.");
+            m_pLogger->out(m_sLogBuffer.c_str());
         }
-#ifdef ATCL_DEBUG
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::Connect] Error %d Getting Firmware : %s\n", timestamp, nErr, m_szFirmwareVersion);
-        fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Error Getting Firmware : " << nErr << std::endl;
+        m_sLogFile.flush();
 #endif
-
         m_bIsConnected = false;
         m_pSerx->close();
         return ERR_COMMNOLINK;
     }
 
     if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::Connect] Got Firmware.\n");
-        m_pLogger->out(m_szLogBuffer);
+        m_sLogBuffer.assign("[Connect] Got Firmware.");
+        m_pLogger->out(m_sLogBuffer.c_str());
     }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] firmware  %s\n", timestamp, m_szFirmwareVersion);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect]Got Firmware : "<<  m_sFirmware << std::endl;
+    m_sLogFile.flush();
 #endif
-
 
     // get dome home az and park az
     getDomeHomeAz(m_dHomeAz);
@@ -167,16 +285,12 @@ int CDomePro::Connect(const char *pszPort)
     getDomeAzCPR(m_nNbStepPerRev);
     getDomeAzCoast(m_dAzCoast);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] m_nNbStepPerRev = %d\n", timestamp, m_nNbStepPerRev);
-    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dHomeAz = %3.2f\n", timestamp, m_dHomeAz);
-    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dParkAz = %3.2f\n", timestamp, m_dParkAz);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] m_nNbStepPerRev = " << m_nNbStepPerRev << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] m_dHomeAz       = " << std::fixed << std::setprecision(2) << m_dHomeAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] m_dParkAz       = " << std::fixed << std::setprecision(2) << m_dParkAz << std::endl;
+    m_sLogFile.flush();
 #endif
-
 
     // Check if the dome is at park
     getDomeLimits();
@@ -189,13 +303,11 @@ int CDomePro::Connect(const char *pszPort)
     nErr = getDomeShutterStatus(nState);
     nErr = getDomeLimits();
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::Connect] m_dCurrentAzPosition : %3.2f\n", timestamp, m_dCurrentAzPosition);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] m_dCurrentAzPositionr = " << std::fixed << std::setprecision(2) << m_dCurrentAzPosition << std::endl;
+    m_sLogFile.flush();
 #endif
+
 
     if(nState != NOT_FITTED )
         m_bHasShutter = true;
@@ -206,6 +318,11 @@ int CDomePro::Connect(const char *pszPort)
 
 void CDomePro::Disconnect()
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Disconnect] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(m_bIsConnected) {
         m_pSerx->purgeTxRx();
         m_pSerx->close();
@@ -218,8 +335,13 @@ void CDomePro::Disconnect()
 
 int CDomePro::syncDome(double dAz, double dEl)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncDome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -232,8 +354,13 @@ int CDomePro::syncDome(double dAz, double dEl)
 
 int CDomePro::gotoDomePark(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [gotoDomePark] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -241,13 +368,18 @@ int CDomePro::gotoDomePark(void)
     if(m_bCalibrating)
         return nErr;
 
-    nErr = domeCommand("!DSgp;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSgp;", sResp);
 
     return nErr;
 }
 
 int CDomePro::unparkDome()
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [unparkDome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     m_bParked = false;
     m_dCurrentAzPosition = m_dParkAz;
 
@@ -258,20 +390,23 @@ int CDomePro::unparkDome()
 int CDomePro::gotoAzimuth(double dNewAz)
 {
 
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [gotoAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     AzToTicks(dNewAz, nPos);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::gotoAzimuth]  dNewAz : %3.2f\n", timestamp, dNewAz);
-    fprintf(Logfile, "[%s] [CDomePro::gotoAzimuth]  nPos : %d\n", timestamp, nPos);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] dNewAz = " << std::fixed << std::setprecision(2) << dNewAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] nPos = " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
     nErr = goToDomeAzimuth(nPos);
@@ -283,7 +418,13 @@ int CDomePro::gotoAzimuth(double dNewAz)
 int CDomePro::gotoElevation(double dNewEl)
 {
 
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [gotoElevation] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
@@ -299,8 +440,13 @@ int CDomePro::gotoElevation(double dNewEl)
 
 int CDomePro::openDomeShutters()
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [openDomeShutters] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -308,14 +454,19 @@ int CDomePro::openDomeShutters()
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DSso;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSso;", sResp);
     return nErr;
 }
 
 int CDomePro::CloseDomeShutters()
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [CloseDomeShutters] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -323,13 +474,19 @@ int CDomePro::CloseDomeShutters()
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DSsc;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSsc;", sResp);
     return nErr;
 }
 
 int CDomePro::abortCurrentCommand()
 {
     int nErr;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [abortCurrentCommand] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
@@ -343,26 +500,49 @@ int CDomePro::abortCurrentCommand()
 
 int CDomePro::goHome()
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [goHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     nErr = homeDomeAzimuth();
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [goHome] ERROR : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
 #pragma mark TODO : Calibrate test
 int CDomePro::learnAzimuthCprRight()
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [learnAzimuthCprRight] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     // get the number of CPR going right.
-    startDomeAzGaugeRight();
+    nErr = startDomeAzGaugeRight();
 
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [learnAzimuthCprRight] ERROR : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
     m_bCalibrating = true;
     m_nLearning = RIGHT;
     return nErr;
@@ -370,13 +550,24 @@ int CDomePro::learnAzimuthCprRight()
 
 int CDomePro::learnAzimuthCprLeft()
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [learnAzimuthCprLeft] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     // get the number of CPR going right.
-    startDomeAzGaugeLeft();
+    nErr = startDomeAzGaugeLeft();
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [learnAzimuthCprLeft] ERROR : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
 
     m_bCalibrating = true;
     m_nLearning = LEFT;
@@ -386,11 +577,17 @@ int CDomePro::learnAzimuthCprLeft()
 
 #pragma mark - dome controller informations
 
-int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
+int CDomePro::getFirmwareVersion(std::string &sFirmware)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
     unsigned long nFirmwareVersion;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getFirmwareVersion] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -398,19 +595,29 @@ int CDomePro::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DGfv;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
+    nErr = domeCommand("!DGfv;", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getFirmwareVersion] ERROR : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
-
-    nFirmwareVersion = strtoul(szResp, NULL, 16);
-    snprintf(pszVersion, nStrMaxLen, "%lu", nFirmwareVersion);
+    }
+    nFirmwareVersion =  std::stoul(sResp, nullptr, 16);
+    sFirmware = std::to_string(nFirmwareVersion);
     return nErr;
 }
 
-int CDomePro::getModel(char *pszModel, int nStrMaxLen)
+int CDomePro::getModel(std::string &sModel)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getModel] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -418,37 +625,38 @@ int CDomePro::getModel(char *pszModel, int nStrMaxLen)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DGhc;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
+    nErr = domeCommand("!DGhc;", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getModel] ERROR : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
+    }
 
-    m_nModel = (int)strtoul(szResp, NULL, 16);
+    m_nModel = std::stoi(sResp, nullptr, 16);
     switch(m_nModel) {
         case CLASSIC_DOME :
-            strncpy(pszModel, "DomePro2-d", nStrMaxLen);
+            sModel.assign("DomePro2-d");
             break;
 
         case CLAMSHELL :
-            strncpy(pszModel, "DomePro2-c", nStrMaxLen);
+            sModel.assign("DomePro2-c");
             break;
 
         case ROR :
-            strncpy(pszModel, "DomePro2-r", nStrMaxLen);
+            sModel.assign("DomePro2-r");
             break;
 
         default:
-            strncpy(pszModel, "Unknown", nStrMaxLen);
+            sModel.assign("Unknown");
             break;
     }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getModel] Model =  %s\n", timestamp, pszModel);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getModel] Model : " << sModel << std::endl;
+    m_sLogFile.flush();
 #endif
-
 
     return nErr;
 }
@@ -461,7 +669,12 @@ int CDomePro::getModelType()
 int CDomePro::getModuleType(int &nModuleType)
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getModuleType] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -469,13 +682,13 @@ int CDomePro::getModuleType(int &nModuleType)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DGmy;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGmy;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Az")) {
+    if(sResp.find("Az")!= std::string::npos) {
         m_nModuleType = MODULE_AZ;
     }
-    else if(strstr(szResp,"Az")) {
+    if(sResp.find("Shut")!= std::string::npos) {
         m_nModuleType = MODULE_SHUT;
     }
     else {
@@ -487,8 +700,13 @@ int CDomePro::getModuleType(int &nModuleType)
 
 int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzMotorPolarity] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -500,11 +718,10 @@ int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 
     switch(m_nMotorPolarity) {
         case POSITIVE :
-            nErr = domeCommand("!DSmpPositive;", szResp, SERIAL_BUFFER_SIZE);
-
+            nErr = domeCommand("!DSmpPositive;", sResp);
             break;
         case NEGATIVE :
-            nErr = domeCommand("!DSmpNegative;", szResp, SERIAL_BUFFER_SIZE);
+            nErr = domeCommand("!DSmpNegative;", sResp);
             break;
         default:
             nErr = ERR_CMDFAILED;
@@ -518,7 +735,12 @@ int CDomePro::setDomeAzMotorPolarity(int nPolarity)
 int CDomePro::getDomeAzMotorPolarity(int &nPolarity)
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzMotorPolarity] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -526,13 +748,13 @@ int CDomePro::getDomeAzMotorPolarity(int &nPolarity)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DGmp;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGmp;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Positive")) {
+    if(sResp.find("Positive")!= std::string::npos) {
         m_nMotorPolarity = POSITIVE;
     }
-    else if(strstr(szResp,"Negative")) {
+    else if(sResp.find("Negative")!= std::string::npos) {
         m_nMotorPolarity = NEGATIVE;
     }
 
@@ -547,8 +769,13 @@ int CDomePro::getDomeAzMotorPolarity(int &nPolarity)
 
 int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzEncoderPolarity] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -560,11 +787,11 @@ int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 
     switch(m_nAzEncoderPolarity) {
         case POSITIVE :
-            nErr = domeCommand("!DSepPositive;", szResp, SERIAL_BUFFER_SIZE);
+            nErr = domeCommand("!DSepPositive;", sResp);
             break;
 
         case NEGATIVE :
-            nErr = domeCommand("!DSepNegative;", szResp, SERIAL_BUFFER_SIZE);
+            nErr = domeCommand("!DSepNegative;", sResp);
             break;
 
         default:
@@ -577,7 +804,12 @@ int CDomePro::setDomeAzEncoderPolarity(int nPolarity)
 int CDomePro::getDomeAzEncoderPolarity(int &nPolarity)
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzEncoderPolarity] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -585,16 +817,15 @@ int CDomePro::getDomeAzEncoderPolarity(int &nPolarity)
     if(m_bCalibrating)
         return SB_OK;
 
-    nErr = domeCommand("!DGep;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGep;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Positive")) {
+    if(sResp.find("Positive")!= std::string::npos) {
         m_nAzEncoderPolarity = POSITIVE;
     }
-    else if(strstr(szResp,"Negative")) {
+    else if(sResp.find("Negative")!= std::string::npos) {
         m_nAzEncoderPolarity = NEGATIVE;
     }
-
     else {
         m_nAzEncoderPolarity = POLARITY_UKNOWN;
     }
@@ -616,57 +847,70 @@ int CDomePro::isGoToComplete(bool &bComplete)
     int nErr = 0;
     double dDomeAz = 0;
     bool bIsMoving = false;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     nErr = isDomeMoving(bIsMoving);
     if(nErr) {
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] bIsMoving   =  %d\n", timestamp, bIsMoving);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Error checking if dome is moving : "  << nErr << std::endl;
+        m_sLogFile.flush();
 #endif
         return nErr;
         }
 
-    getDomeAzPosition(dDomeAz);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Dome is moving : "  << (bIsMoving?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bIsMoving) {
         bComplete = false;
         return nErr;
     }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz    =  %3.2f\n", timestamp, dDomeAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz  =  %3.2f\n", timestamp, m_dGotoAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] dDomeAz    =  %3.2f\n", timestamp, dDomeAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dGotoAz  =  %3.2f\n", timestamp, m_dGotoAz);
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] m_dAzCoast =  %3.2f\n", timestamp, m_dAzCoast);
-    fflush(Logfile);
+    getDomeAzPosition(dDomeAz);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] dDomeAz = " << std::fixed << std::setprecision(2) << dDomeAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] m_dGotoAz = " << std::fixed << std::setprecision(2) << m_dGotoAz << std::endl;
+    m_sLogFile.flush();
 #endif
 
     if(checkBoundaries(m_dGotoAz, dDomeAz, m_dAzCoast+1)) {
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] Goto finished\n", timestamp);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Goto finished" << std::endl;
+        m_sLogFile.flush();
 #endif
         bComplete = true;
         m_nGotoTries = 0;
     }
     else {
         // we're not moving and we're not at the final destination !!!
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] we're not moving and we're not at the final destination !!!" << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] dDomeAz = " << std::fixed << std::setprecision(2) << dDomeAz << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] m_dGotoAz = " << std::fixed << std::setprecision(2) << m_dGotoAz << std::endl;
+        m_sLogFile.flush();
+#endif
         if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isGoToComplete] domeAz = %f, mGotoAz = %f, m_dAzCoast = %f\n", dDomeAz, m_dGotoAz, m_dAzCoast);
-            m_pLogger->out(m_szLogBuffer);
+            m_sLogBuffer.assign("[Connect] Got Firmware.");
+            m_pLogger->out(m_sLogBuffer.c_str());
+            ssTmp << "[isGoToComplete] dDomeAz = " << std::fixed << std::setprecision(2) << dDomeAz << ", m_dGotoAz = " << std::fixed << std::setprecision(2) << m_dGotoAz << std::endl;
+            m_pLogger->out(ssTmp.str().c_str());
         }
         if(m_nGotoTries == 0) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Retrying Goto" << std::endl;
+            m_sLogFile.flush();
+#endif
             bComplete = false;
             m_nGotoTries = 1;
             gotoAzimuth(m_dGotoAz);
@@ -675,23 +919,67 @@ int CDomePro::isGoToComplete(bool &bComplete)
             m_nGotoTries = 0;
             bComplete = false;
             nErr = ERR_CMDFAILED;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] Goto error" << std::endl;
+            m_sLogFile.flush();
+#endif
         }
     }
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::isGoToComplete] bComplete   =  %d\n", timestamp, bComplete);
-#endif
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToComplete] bComplete : " << ( bComplete?"Yes":"No" ) << std::endl;
+    m_sLogFile.flush();
+#endif
     return nErr;
 }
+
+
+bool CDomePro::checkBoundaries(double dTargetAz, double dDomeAz, double nMargin)
+{
+    double highMark;
+    double lowMark;
+    double roundedGotoAz;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [checkBoundaries] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    // we need to test "large" depending on the heading error and movement coasting
+    highMark = ceil(dDomeAz)+nMargin;
+    lowMark = ceil(dDomeAz)-nMargin;
+    roundedGotoAz = ceil(dTargetAz);
+
+    if(lowMark < 0 && highMark > 0) { // we're close to 0 degre but above 0
+        if((roundedGotoAz+2) >= 360)
+            roundedGotoAz = (roundedGotoAz+2)-360;
+        if ( (roundedGotoAz > lowMark) && (roundedGotoAz <= highMark)) {
+            return true;
+        }
+    }
+    if ( lowMark > 0 && highMark>360 ) { // we're close to 0 but from the other side
+        if( (roundedGotoAz+360) > lowMark && (roundedGotoAz+360) <= highMark) {
+            return true;
+        }
+    }
+    if (roundedGotoAz > lowMark && roundedGotoAz <= highMark) {
+        return true;
+    }
+
+    return false;
+}
+
 
 int CDomePro::isGoToElComplete(bool &bComplete)
 {
     int nErr = 0;
     int nADC;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isGoToElComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bComplete = false;
     if(!m_bIsConnected)
@@ -712,6 +1000,11 @@ int CDomePro::isOpenComplete(bool &bComplete)
 {
     int nErr = 0;
     int nState;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isOpenComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -738,12 +1031,25 @@ int CDomePro::isCloseComplete(bool &bComplete)
     int err=0;
     int nState;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isCloseComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
     err = getDomeShutterStatus(nState);
-    if(err)
+    if(err) {
+#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [isCloseComplete] error", timestamp);
+        fflush(Logfile);
+#endif
         return ERR_CMDFAILED;
+    }
     if(nState == CLOSED){
         m_bShutterOpened = false;
         bComplete = true;
@@ -765,6 +1071,11 @@ int CDomePro::isParkComplete(bool &bComplete)
     int nMode;
     double dDomeAz=0;
     bool bIsMoving = false;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isParkComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -795,6 +1106,10 @@ int CDomePro::isParkComplete(bool &bComplete)
         bComplete = false;
         m_bHomed = false;
         m_bParked = false;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isParkComplete] error." << std::endl;
+        m_sLogFile.flush();
+#endif
         nErr = ERR_CMDFAILED;
     }
 
@@ -804,6 +1119,11 @@ int CDomePro::isParkComplete(bool &bComplete)
 int CDomePro::isUnparkComplete(bool &bComplete)
 {
     int nErr = 0;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -825,15 +1145,13 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
 
     nErr = isDomeMoving(bIsMoving);
     if(nErr) {
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::isFindHomeComplete] error checking if dome is moving : %dX\n", timestamp, nErr);
-        fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkComplete] error checking if dome is moving : " << nErr << std::endl;
+        m_sLogFile.flush();
 #endif
         return nErr;
     }
+
     if(bIsMoving) {
         m_bHomed = false;
         bComplete = false;
@@ -850,25 +1168,25 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
     }
     else {
         // did we just pass home
-        if(checkBoundaries(m_dHomeAz, m_dCurrentAzPosition, m_dAzCoast+1)) {
+        if(!checkBoundaries(m_dHomeAz, m_dCurrentAzPosition, m_dAzCoast+1)) {
             m_nHomingTries = 0;
             gotoAzimuth(m_dHomeAz); // back out a bit
             bComplete = true;
-#if defined ACE_DEBUG && ACE_DEBUG >= 2
-            ltime = time(NULL);
-            timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [CDomePro::isFindHomeComplete] Close to home, backing out to %3.2f !!!\n", timestamp, m_dHomeAz);
-            fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkComplete] Close to home, backing out to : " << std::fixed << std::setprecision(2) << m_dHomeAz << std::endl;
+            m_sLogFile.flush();
 #endif
         }
         else {
             // we're not moving and we're not at the home position !!!
             if (m_bDebugLog) {
-                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::isFindHomeComplete] Not moving and not at home !!!\n");
-                m_pLogger->out(m_szLogBuffer);
+                m_pLogger->out("[isFindHomeComplete] Not moving and not at home !!!\n");
             }
             if(m_nHomingTries == 0) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkComplete] error, not moving and not at home. Retrying" << std::endl;
+                m_sLogFile.flush();
+#endif
                 bComplete = false;
                 m_nHomingTries = 1;
                 gotoAzimuth(m_dHomeAz);
@@ -877,6 +1195,10 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
                 bComplete = false;
                 m_bHomed = false;
                 m_bParked = false;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkComplete] error, not moving and not at home" << std::endl;
+                m_sLogFile.flush();
+#endif
                 nErr = ERR_CMDFAILED;
             }
         }
@@ -888,9 +1210,14 @@ int CDomePro::isFindHomeComplete(bool &bComplete)
 
 int CDomePro::isLearningCPRComplete(bool &bComplete)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nMode;
     int nSteps;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isLearningCPRComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -930,8 +1257,14 @@ int CDomePro::isLearningCPRComplete(bool &bComplete)
 
 int CDomePro::isPassingHomeComplete(bool &bComplete)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     bComplete = false;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isPassingHomeComplete] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     nErr = getDomeLimits();
     if(nErr) {
         return nErr;
@@ -947,20 +1280,28 @@ int CDomePro::isPassingHomeComplete(bool &bComplete)
 
 int CDomePro::setHomeAz(double dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setHomeAz] Called." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setHomeAz] Setting home Az to : " << std::fixed << std::setprecision(2) << dAz << std::endl;
+    m_sLogFile.flush();
+#endif
 
     m_dHomeAz = dAz;
-
-    if(!m_bIsConnected)
-        return NOT_CONNECTED;
-
     return nErr;
 }
 
 int CDomePro::setDomeAzCoast(double dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzCoast] Called." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzCoast] Setting Az coast to : " << std::fixed << std::setprecision(2) << dAz << std::endl;
+    m_sLogFile.flush();
+#endif
 
     m_dAzCoast = dAz;
     nPos = (int) ((16385/360) * dAz);
@@ -971,37 +1312,49 @@ int CDomePro::setDomeAzCoast(double dAz)
 
 int CDomePro::getDomeAzCoast(double &dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzCoast] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     nErr = getDomeAzCoast(nPos);
     if(nErr)
         return nErr;
 
     dAz = (nPos/16385.0) * 360.0;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzCoast] Az coast : " << std::fixed << std::setprecision(2) << dAz << std::endl;
+    m_sLogFile.flush();
+#endif
     return nErr;
 }
 
 
 int CDomePro::setParkAz(double dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
+
 
     m_dParkAz = dAz;
 
     AzToTicks(dAz, nPos);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::setParkAz] nPos : %d\n", timestamp, nPos);
-    fprintf(Logfile, "[%s] [CDomePro::setParkAz] dAz : %3.3f\n", timestamp, dAz);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkAz] Park Az   : " << std::fixed << std::setprecision(2) << dAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkAz] Park nPos : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
     setDomeParkAzimuth(nPos);
@@ -1011,6 +1364,11 @@ int CDomePro::setParkAz(double dAz)
 
 double CDomePro::getCurrentAz()
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getCurrentAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(m_bIsConnected)
         getDomeAzPosition(m_dCurrentAzPosition);
 
@@ -1019,6 +1377,11 @@ double CDomePro::getCurrentAz()
 
 double CDomePro::getCurrentEl()
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getCurrentEl] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(m_bIsConnected)
         getDomeEl(m_dCurrentElPosition);
 
@@ -1027,6 +1390,10 @@ double CDomePro::getCurrentEl()
 
 int CDomePro::getCurrentShutterState()
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getCurrentShutterState] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
     if(m_bIsConnected)
         getDomeShutterStatus(m_nShutterState);
 
@@ -1039,6 +1406,12 @@ void CDomePro::setShutterAngleCalibration(int nShutter1OpenAngle, int nShutter1r
                                 int nShutter2CloseAngle, int nShutter2CloseAngleADC,
                                 bool bShutterGotoEnabled)
 {
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setShutterAngleCalibration] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     m_Shutter1OpenAngle = nShutter1OpenAngle;
     m_Shutter1OpenAngle_ADC = nShutter1rOpenAngleADC;
     m_Shutter1CloseAngle = nShutter1CloseAngle;
@@ -1062,133 +1435,16 @@ void CDomePro::setDebugLog(bool bEnable)
 }
 
 
-#pragma mark - protected methods
-
-#pragma mark - dome communication
-
-int CDomePro::domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen)
-{
-    int nErr = DP2_OK;
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
-    unsigned long ulBytesWrite;
-
-    m_pSerx->purgeTxRx();
-    if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Sending %s\n",pszCmd);
-        m_pLogger->out(m_szLogBuffer);
-    }
-
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::domeCommand] Sending %s\n", timestamp, pszCmd);
-    fflush(Logfile);
-#endif
-
-    nErr = m_pSerx->writeFile((void *)pszCmd, strlen(pszCmd), ulBytesWrite);
-    m_pSerx->flushTx();
-    if(nErr)
-        return nErr;
-    // read response
-    if (m_bDebugLog) {
-        snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::domeCommand] Getting response.\n");
-        m_pLogger->out(m_szLogBuffer);
-    }
-    nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
-    if(nErr) {
-
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::domeCommand] error %d reading response : %s\n", timestamp, nErr, szResp);
-        fflush(Logfile);
-#endif
-        return nErr;
-    }
-    if(pszResult)
-        strncpy(pszResult, (const char *)szResp, nResultMaxLen);
-
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::domeCommand] got response : '%s'\n", timestamp, szResp);
-    fflush(Logfile);
-#endif
-
-    return nErr;
-
-}
-
-
-int CDomePro::readResponse(unsigned char *pszRespBuffer, int nBufferLen)
-{
-    int nErr = DP2_OK;
-    unsigned long ulBytesRead = 0;
-    unsigned long ulTotalBytesRead = 0;
-    unsigned char *pszBufPtr;
-
-    memset(pszRespBuffer, 0, (size_t) nBufferLen);
-    pszBufPtr = pszRespBuffer;
-
-    do {
-        nErr = m_pSerx->readFile(pszBufPtr, 1, ulBytesRead, MAX_TIMEOUT);
-        if(nErr) {
-            if (m_bDebugLog) {
-                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile error.\n");
-                m_pLogger->out(m_szLogBuffer);
-            }
-            return nErr;
-        }
-
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 4
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [CDomePro::readResponse] *pszBufPtr = %02X\n", timestamp, *pszBufPtr);
-        fflush(Logfile);
-#endif
-
-        if (ulBytesRead !=1) {// timeout
-            if (m_bDebugLog) {
-                snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] readFile Timeout.\n");
-                m_pLogger->out(m_szLogBuffer);
-            }
-            nErr = DP2_BAD_CMD_RESPONSE;
-            break;
-        }
-        ulTotalBytesRead += ulBytesRead;
-        if (m_bDebugLog) {
-            snprintf(m_szLogBuffer,DP2_LOG_BUFFER_SIZE,"[CDomePro::readResponse] nBytesRead = %lu\n",ulBytesRead);
-            m_pLogger->out(m_szLogBuffer);
-        }
-        // check for  errors or single ACK
-        if(*pszBufPtr == ATCL_NACK) {
-            nErr = DP2_BAD_CMD_RESPONSE;
-            break;
-        }
-
-        if(*pszBufPtr == ATCL_ACK) {
-            nErr = DP2_OK;
-            break;
-        }
-
-
-    } while (*pszBufPtr++ != ';' && ulTotalBytesRead < nBufferLen );
-
-    if(ulTotalBytesRead && *(pszBufPtr-1) == ';')
-        *(pszBufPtr-1) = 0; //remove the ; to zero terminate the string
-
-    return nErr;
-}
-
 #pragma mark - conversion functions
 
 //	Convert pdAz to number of ticks from home.
 void CDomePro::AzToTicks(double pdAz, int &ticks)
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [AzToTicks] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     if(!m_nNbStepPerRev)
         getDomeAzCPR(m_nNbStepPerRev);
 
@@ -1199,8 +1455,12 @@ void CDomePro::AzToTicks(double pdAz, int &ticks)
 
 
 // Convert ticks from home to Az
-void CDomePro::TicksToAz(int ticks, double &pdAz)
+void CDomePro::TicksToAz(unsigned long ticks, double &pdAz)
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [TicksToAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
     if(!m_nNbStepPerRev)
         getDomeAzCPR(m_nNbStepPerRev);
 
@@ -1214,13 +1474,17 @@ void CDomePro::TicksToAz(int ticks, double &pdAz)
 
 int CDomePro::setDomeLeftOn(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeLeftOn] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nErr = domeCommand("!DSol;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSol;", sResp);
     if(nErr)
         return nErr;
 
@@ -1229,13 +1493,17 @@ int CDomePro::setDomeLeftOn(void)
 
 int CDomePro::setDomeRightOn(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeRightOn] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    nErr = domeCommand("!DSor;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSor;", sResp);
     if(nErr)
         return nErr;
 
@@ -1244,14 +1512,18 @@ int CDomePro::setDomeRightOn(void)
 
 int CDomePro::killDomeAzimuthMovement(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [killDomeAzimuthMovement] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
 
-    nErr = domeCommand("!DXxa;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DXxa;", sResp);
     if(nErr)
         return nErr;
 
@@ -1262,9 +1534,9 @@ int CDomePro::killDomeAzimuthMovement(void)
 
 int CDomePro::getDomeAzPosition(double &dDomeAz)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    int nTmp;
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    unsigned long nTmp;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
@@ -1272,25 +1544,27 @@ int CDomePro::getDomeAzPosition(double &dDomeAz)
     if(m_bCalibrating)
         return nErr;
 
-    nErr = domeCommand("!DGap;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGap;", sResp);
     if(nErr)
         return nErr;
 
     // convert Az hex string to long
-    nTmp = (int)strtoul(szResp, NULL, 16);
+    nTmp = std::stoul(sResp, nullptr, 16);
 
     TicksToAz(nTmp, dDomeAz);
 
     m_dCurrentAzPosition = dDomeAz;
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] nTmp = %s\n", timestamp, szResp);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] nTmp = %d\n", timestamp, nTmp);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeAzPosition] dDomeAz = %3.2f\n", timestamp, dDomeAz);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] sResp  :" << sResp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] nTmp    :" << nTmp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] Park Az : " << std::fixed << std::setprecision(2) << dDomeAz << std::endl;
+    m_sLogFile.flush();
 #endif
 
     return nErr;
@@ -1298,11 +1572,16 @@ int CDomePro::getDomeAzPosition(double &dDomeAz)
 
 int CDomePro::getDomeEl(double &dDomeEl)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nShutterState;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeEl] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     getDomeShutterStatus(nShutterState);
 
@@ -1322,7 +1601,12 @@ int CDomePro::getDomeEl(double &dDomeEl)
 
 int CDomePro::getDomeHomeAz(double &dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeHomeAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     dAz = m_dHomeAz;
 
@@ -1331,8 +1615,13 @@ int CDomePro::getDomeHomeAz(double &dAz)
 
 int CDomePro::getDomeParkAz(double &dAz)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nPos;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeParkAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     nErr = getDomeParkAzimuth(nPos);
     if(nErr)
@@ -1345,15 +1634,20 @@ int CDomePro::getDomeParkAz(double &dAz)
 
 int CDomePro::getDomeShutterStatus(int &nState)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     int nShutterState;
 
-    nErr = domeCommand("!DGsx;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutterStatus] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGsx;", sResp);
     if(nErr)
         return nErr;
 
-    nShutterState = (int)strtoul(szResp, NULL, 16);
+    nShutterState = std::stoi(sResp, nullptr, 16);
 
     switch(nShutterState) {
         case OPEN:
@@ -1383,11 +1677,16 @@ int CDomePro::getDomeShutterStatus(int &nState)
 
 int CDomePro::isDomeMoving(bool &bIsMoving)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int nMode;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isDomeMoving] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bIsMoving = false;
 
@@ -1398,15 +1697,25 @@ int CDomePro::isDomeMoving(bool &bIsMoving)
     if(nMode != FIXED && nMode != AZ_TO)
         bIsMoving = true;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isDomeMoving] moving :" << (bIsMoving?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
     return nErr;
 }
 
 int CDomePro::isDomeAtHome(bool &bAtHome)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
 
     if(!m_bIsConnected)
         return NOT_CONNECTED;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isDomeAtHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bAtHome = false;
 
@@ -1417,6 +1726,11 @@ int CDomePro::isDomeAtHome(bool &bAtHome)
     if(m_nAtHomeState == ACTIVE)
         bAtHome = true;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isDomeAtHome] at home :" << (bAtHome?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
     return nErr;
 }
 
@@ -1424,9 +1738,14 @@ int CDomePro::isDomeAtHome(bool &bAtHome)
 
 int CDomePro::setDomeAzCPR(int nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzCPR] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     // nCpr must be betweem 0x20 and 0x40000000 and be even
     if(nValue < 0x20 )
@@ -1435,23 +1754,29 @@ int CDomePro::setDomeAzCPR(int nValue)
         nValue = 0x40000000;
     nValue &= 0XFFFFFFFE; // makes it an even number
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DScp0x%08X;", nValue);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DScp0x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex << nValue <<";";
+
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeAzCPR(int &nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGcp;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzCPR] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGcp;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nValue = (int)strtoul(szResp, NULL, 16);
+    nValue = std::stoi(sResp, nullptr, 16);
     return nErr;
 }
 
@@ -1470,9 +1795,14 @@ int CDomePro::getRightCPR()
 #pragma mark not yet implemented in the firmware
 int CDomePro::setDomeMaxVel(int nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeMaxVel] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     // nValue must be betweem 0x01 and 0x7C (124)
     if(nValue < 0x1 )
@@ -1480,8 +1810,8 @@ int CDomePro::setDomeMaxVel(int nValue)
     if(nValue>0x7C)
         nValue = 0x7C;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSmv0x%08X;", nValue);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DSmv0x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex << nValue <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
@@ -1489,24 +1819,34 @@ int CDomePro::setDomeMaxVel(int nValue)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getDomeMaxVel(int &nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGmv;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeMaxVel] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGmv;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nValue = (int)strtoul(szResp, NULL, 16);
+    nValue = std::stoi(sResp, NULL, 16);
     return nErr;
 }
 
 #pragma mark not yet implemented in the firmware
 int CDomePro::setDomeAccel(int nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAccel] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     // nValue must be betweem 0x01 and 0xFF (255)
     if(nValue < 0x1 )
@@ -1514,8 +1854,8 @@ int CDomePro::setDomeAccel(int nValue)
     if(nValue>0xFF)
         nValue = 0xFF;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSma0x%08X;", nValue);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DSma0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nValue <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
@@ -1523,15 +1863,20 @@ int CDomePro::setDomeAccel(int nValue)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getDomeAccel(int &nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGma;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAccel] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGma;", sResp);
     if(nErr)
         return nErr;
 
-    // convert result hex string to long
-    nValue = (int)strtoul(szResp, NULL, 16);
+    // convert result hex string to int
+    nValue = std::stoi(sResp, NULL, 16);
     return nErr;
 }
 
@@ -1539,9 +1884,15 @@ int CDomePro::getDomeAccel(int &nValue)
 
 int CDomePro::setDomeAzCoast(int nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzCoast] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     // nCpr must be betweem 0x20 and 0x40000000 and be even
     if(nValue < 0x1 )
@@ -1549,80 +1900,99 @@ int CDomePro::setDomeAzCoast(int nValue)
     if(nValue>0x7C)
         nValue = 0x7C;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSco0x%08X;", nValue);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSco0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nValue <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeAzCoast(int &nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGco;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzCoast] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGco;", sResp);
     if(nErr)
         return nErr;
 
-    // convert result hex string to long
-    nValue = (int)strtoul(szResp, NULL, 16);
+    // convert result hex string to int
+    nValue = std::stoi(sResp, NULL, 16);
     return nErr;
 }
 
 int CDomePro::getDomeAzDiagPosition(int &nValue)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGdp;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzDiagPosition] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGdp;", sResp);
     if(nErr)
         return nErr;
 
-    // convert result hex string to long
-    nValue = (int)strtoul(szResp, NULL, 16);
+    // convert result hex string to int
+    nValue = std::stoi(sResp, NULL, 16);
     return nErr;
 }
 
 int CDomePro::clearDomeAzDiagPosition(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DCdp;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [clearDomeAzDiagPosition] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DCdp;", sResp);
     return nErr;
 }
 
 int CDomePro::getDomeAzMoveMode(int &mode)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGam;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzMoveMode] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGam;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp, "Fixed")) {
+    if(sResp.find("Fixed")!= std::string::npos) {
         mode = FIXED;
     }
-    else if(strstr(szResp, "Left")) {
+    else if(sResp.find("Left")!= std::string::npos) {
         mode = LEFT;
     }
-    else if(strstr(szResp, "Right")) {
+    else if(sResp.find("Right")!= std::string::npos) {
         mode = RIGHT;
     }
-    else if(strstr(szResp, "GoTo")) {
+    else if(sResp.find("GoTo")!= std::string::npos) {
         mode = GOTO;
     }
-    else if(strstr(szResp, "Homing")) {
+    else if(sResp.find("Homing")!= std::string::npos ) {
         mode = HOMING;
     }
-    else if(strstr(szResp, "AzimuthTO")) {
+    else if(sResp.find("AzimuthTO")!= std::string::npos) {
         mode = AZ_TO;
     }
-    else if(strstr(szResp, "Gauging")) {
+    else if(sResp.find("Gauging")!= std::string::npos) {
         mode = GAUGING;
     }
-    else if(strstr(szResp, "Parking")) {
+    else if(sResp.find("Parking")!= std::string::npos) {
         mode = PARKING;
     }
     return nErr;
@@ -1630,21 +2000,26 @@ int CDomePro::getDomeAzMoveMode(int &mode)
 
 int CDomePro::getDomeLimits(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     uint16_t nLimits;
 
-    nErr = domeCommand("!DGdl;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGdl;", sResp);
     if(nErr)
         return nErr;
 
-    nLimits = (uint16_t)strtoul(szResp, NULL, 16);
+    nLimits = (uint16_t) std::stoi(sResp, NULL, 16);
 
 #if defined ATCL_DEBUG && ATCL_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] nLimits : %04X\n", timestamp, nLimits);
+    fprintf(Logfile, "[%s] [getDomeLimits] nLimits : %04X\n", timestamp, nLimits);
     fflush(Logfile);
 #endif
 
@@ -1658,18 +2033,16 @@ int CDomePro::getDomeLimits(void)
     m_nAtHomeSwitchState = (nLimits & BitHomeSwitchState ? ACTIVE : INNACTIVE);
     m_nAtParkSate = (nLimits & BitAtPark ? ACTIVE : INNACTIVE);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nShutter1OpenedSwitchState : %d\n", timestamp, m_nShutter1OpenedSwitchState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nShutter1ClosedSwitchState : %d\n", timestamp, m_nShutter1ClosedSwitchState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nShutter2OpenedSwitchState : %d\n", timestamp, m_nShutter2OpenedSwitchState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nShutter2ClosedSwitchState : %d\n", timestamp, m_nShutter2ClosedSwitchState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nAtHomeState               : %d\n", timestamp, m_nAtHomeState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nAtHomeSwitchState         : %d\n", timestamp, m_nAtHomeSwitchState);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeLimits] m_nAtParkSate                : %d\n", timestamp, m_nAtParkSate);
-    fflush(Logfile);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nShutter1OpenedSwitchState : " << m_nShutter1OpenedSwitchState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nShutter1ClosedSwitchState : " << m_nShutter1ClosedSwitchState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nShutter2OpenedSwitchState : " << m_nShutter2OpenedSwitchState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nShutter2ClosedSwitchState : " << m_nShutter2ClosedSwitchState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nAtHomeState               : " << m_nAtHomeState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nAtHomeSwitchState         : " << m_nAtHomeSwitchState << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLimits] m_nAtParkSate                : " << m_nAtParkSate << std::endl;
+    m_sLogFile.flush();
 #endif
 
     return nErr;
@@ -1678,14 +2051,19 @@ int CDomePro::getDomeLimits(void)
 
 int CDomePro::setDomeHomeDirection(int nDir)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeHomeDirection] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nDir == LEFT) {
-        nErr = domeCommand("!DShdLeft;", szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DShdLeft;", sResp);
     }
     else if (nDir == RIGHT) {
-        nErr = domeCommand("!DShdRight;", szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DShdRight;", sResp);
     }
     else {
         return INVALID_COMMAND;
@@ -1696,17 +2074,22 @@ int CDomePro::setDomeHomeDirection(int nDir)
 
 int CDomePro::getDomeHomeDirection(int &nDir)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGhd;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeHomeDirection] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGhd;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp, "Left")) {
+    if(sResp.find("Left")!= std::string::npos) {
         nDir = LEFT;
     }
-    else if(strstr(szResp, "Right")) {
+    else if(sResp.find("Right")!= std::string::npos) {
         nDir = RIGHT;
     }
     return nErr;
@@ -1716,23 +2099,25 @@ int CDomePro::getDomeHomeDirection(int &nDir)
 int CDomePro::setDomeHomeAzimuth(int nPos)
 {
 
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeHomeAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::setDomeHomeAzimuth] nPos : %d\n", timestamp, nPos);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeHomeAzimuth] nPos : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSha0x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DSha0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nPos <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
@@ -1740,31 +2125,40 @@ int CDomePro::setDomeHomeAzimuth(int nPos)
 int CDomePro::setDomeAzimuthOCP_Limit(double dLimit)
 {
 
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzimuthOCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     ulTmp = (int)floor((dLimit/0.0468f)+0.5);
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSxa0x%08X;", ulTmp);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSxa0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << ulTmp <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeAzimuthOCP_Limit(double &dLimit)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = domeCommand("!DGxa;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzimuthOCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGxa;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dLimit = (double)ulTmp * 0.0468f;
 
@@ -1774,22 +2168,25 @@ int CDomePro::getDomeAzimuthOCP_Limit(double &dLimit)
 
 int CDomePro::getDomeHomeAzimuth(int &nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGha;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeHomeAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGha;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nPos = (int)strtoul(szResp, NULL, 16);
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getDomeHomeAzimuth] szResp : %s\n", timestamp, szResp);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeHomeAzimuth] nPos   : %d\n", timestamp, nPos);
-    fflush(Logfile);
+    nPos = std::stoi(sResp, NULL, 16);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] sResp : " << sResp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzPosition] nPos   : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
     return nErr;
@@ -1797,10 +2194,15 @@ int CDomePro::getDomeHomeAzimuth(int &nPos)
 
 int CDomePro::homeDomeAzimuth(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSah;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [homeDomeAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSah;", sResp);
 
     return nErr;
 }
@@ -1808,22 +2210,31 @@ int CDomePro::homeDomeAzimuth(void)
 
 int CDomePro::goToDomeAzimuth(int nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSgo0x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [goToDomeAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
+    ssTmp << "!DSgo0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nPos <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::goToDomeElevation(int nADC1, int nADC2)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [goToDomeElevation] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nADC1 < 0 && nADC2> 4095)
         return COMMAND_FAILED;
@@ -1843,77 +2254,88 @@ int CDomePro::goToDomeElevation(int nADC1, int nADC2)
 
 int CDomePro::GoToDomeShutter1_ADC(int nADC)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [GoToDomeShutter1_ADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nADC < 0 && nADC> 4095)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg10x%08X;", nADC);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSg10x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nADC <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::GoToDomeShutter2_ADC(int nADC)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [GoToDomeShutter2_ADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nADC < 0 && nADC> 4095)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSg20x%08X;", nADC);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSg20x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nADC <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 
 int CDomePro::setDomeParkAzimuth(int nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeParkAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::setDomeParkAzimuth] nPos : %d\n", timestamp, nPos);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeParkAzimuth] nPos   : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSpa0x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSpa0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nPos <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeParkAzimuth(int &nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGpa;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeParkAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGpa;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nPos = (int)strtoul(szResp, NULL, 16);
+    nPos = std::stoi(sResp, NULL, 16);
 
-#if defined ATCL_DEBUG && ATCL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CDomePro::getDomeParkAzimuth] szResp : %s\n", timestamp, szResp);
-    fprintf(Logfile, "[%s] [CDomePro::getDomeParkAzimuth] nPos : %d\n", timestamp, nPos);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeParkAzimuth] sResp : " << sResp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeParkAzimuth] nPos   : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
     return nErr;
@@ -1921,40 +2343,54 @@ int CDomePro::getDomeParkAzimuth(int &nPos)
 
 int CDomePro::calibrateDomeAzimuth(int nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [calibrateDomeAzimuth] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nPos < 0 && nPos> m_nNbStepPerRev)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSca0x%08X;", nPos);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSca0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nPos <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::startDomeAzGaugeRight()
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSgr;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startDomeAzGaugeRight] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSgr;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeAzGaugeRight(int &nSteps)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGgr;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzGaugeRight] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGgr;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nSteps = (int)strtoul(szResp, NULL, 16);
+    nSteps = std::stoi(sResp, NULL, 16);
     if(!nSteps) { // if we get 0x00000000 there was an error
         // restore old value
         m_nNbStepPerRev = m_nNbStepPerRev_save;
@@ -1967,25 +2403,35 @@ int CDomePro::getDomeAzGaugeRight(int &nSteps)
 
 int CDomePro::startDomeAzGaugeLeft()
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSgl;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startDomeAzGaugeLeft] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSgl;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeAzGaugeLeft(int &nSteps)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGgl;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzGaugeLeft] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGgl;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nSteps = (int)strtoul(szResp, NULL, 16);
+    nSteps = std::stoi(sResp, NULL, 16);
     if(!nSteps) { // if we get 0x00000000 there was an error
         // restore old value
         m_nNbStepPerRev = m_nNbStepPerRev_save;
@@ -2000,26 +2446,36 @@ int CDomePro::getDomeAzGaugeLeft(int &nSteps)
 
 int CDomePro::killDomeShutterMovement(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DXxs;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [killDomeShutterMovement] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DXxs;", sResp);
     if(nErr)
         return nErr;
 
     return nErr;
 }
 
-int CDomePro::getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen)
+int CDomePro::getDomeDebug(std::string &sDebugStrBuff)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGdg;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeDebug] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGdg;", sResp);
     if(nErr)
         return nErr;
 
-    strncpy(pszDebugStrBuff, szResp, nStrMaxLen);
+    sDebugStrBuff.assign(sResp);
 
     return nErr;
 }
@@ -2028,16 +2484,21 @@ int CDomePro::getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen)
 
 int CDomePro::getDomeSupplyVoltageAzimuthL(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGva;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeSupplyVoltageAzimuthL] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGva;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
 
@@ -2046,16 +2507,21 @@ int CDomePro::getDomeSupplyVoltageAzimuthL(double &dVolts)
 
 int CDomePro::getDomeSupplyVoltageShutterL(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGvs;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeSupplyVoltageShutterL] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGvs;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
     
@@ -2065,16 +2531,21 @@ int CDomePro::getDomeSupplyVoltageShutterL(double &dVolts)
 #pragma mark FIX VOLTAGE MULTIPLIER
 int CDomePro::getDomeSupplyVoltageAzimuthM(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGoa;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeSupplyVoltageAzimuthM] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGoa;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
 
@@ -2085,16 +2556,21 @@ int CDomePro::getDomeSupplyVoltageAzimuthM(double &dVolts)
 #pragma mark FIX VOLTAGE MULTIPLIER
 int CDomePro::getDomeSupplyVoltageShutterM(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGos;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeSupplyVoltageShutterM] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGos;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp * 0.00812763;
 
@@ -2104,16 +2580,21 @@ int CDomePro::getDomeSupplyVoltageShutterM(double &dVolts)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getDomeRotationSenseAnalog(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGra;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeRotationSenseAnalog] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGra;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp / 255 * 5; // FF = 5v, 0 = 0v
     
@@ -2123,107 +2604,132 @@ int CDomePro::getDomeRotationSenseAnalog(double &dVolts)
 
 int CDomePro::setDomeShutter1_OpTimeOut(int nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
 
     if(nTimeout < 10 && nTimeout > 500)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSt10x%08X;", nTimeout);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutter1_OpTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
+    ssTmp << "!DSt10x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nTimeout <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeShutter1_OpTimeOut(int &nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGt1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutter1_OpTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGt1;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = (int)strtoul(szResp, NULL, 16);
+    nTimeout = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeShutter2_OpTimeOut(int nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutter2_OpTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nTimeout < 10 && nTimeout > 500)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSt20x%08X;", nTimeout);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSt20x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nTimeout <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 
 }
 
 int CDomePro::getDomeShutter2_OpTimeOut(int &nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGt2;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGt2;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = (int)strtoul(szResp, NULL, 16);
+    nTimeout = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeShutODirTimeOut(int nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutODirTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nTimeout < 10 && nTimeout > 500)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSto0x%08X;", nTimeout);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSto0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nTimeout <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeShutODirTimeOut(int &nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGto;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutODirTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGto;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = (int)strtoul(szResp, NULL, 16);
+    nTimeout = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeAzimuthTimeOutEnabled(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzimuthTimeOutEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSaeYes;");
+        nErr = domeCommand("!DSaeYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSaeNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSaeNo;", sResp);
 
     return nErr;
 
@@ -2231,15 +2737,20 @@ int CDomePro::setDomeAzimuthTimeOutEnabled(bool bEnable)
 
 int CDomePro::getDomeAzimuthTimeOutEnabled(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
     bEnable = false;
 
-    nErr = domeCommand("!DGae;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzimuthTimeOutEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGae;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2247,46 +2758,59 @@ int CDomePro::getDomeAzimuthTimeOutEnabled(bool &bEnable)
 
 int CDomePro::setDomeAzimuthTimeOut(int nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeAzimuthTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nTimeout < 10 && nTimeout > 500)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSta0x%08X;", nTimeout);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DSta0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nTimeout <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeAzimuthTimeOut(int &nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGta;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzimuthTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGta;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = (int)strtoul(szResp, NULL, 16);
+    nTimeout = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeShutCloseOnLinkTimeOut(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutCloseOnLinkTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStsYes;");
+        nErr = domeCommand("!DStsYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStsNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DStsNo;", sResp);
 
     return nErr;
     
@@ -2294,15 +2818,20 @@ int CDomePro::setDomeShutCloseOnLinkTimeOut(bool bEnable)
 
 int CDomePro::getDomeShutCloseOnLinkTimeOut(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
     bEnable = false;
 
-    nErr = domeCommand("!DGts;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutCloseOnLinkTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGts;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2310,31 +2839,39 @@ int CDomePro::getDomeShutCloseOnLinkTimeOut(bool &bEnable)
 
 int CDomePro::setDomeShutCloseOnClientTimeOut(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutCloseOnClientTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSteYes;");
+        nErr = domeCommand("!DSteYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSteNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSteNo;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeShutCloseOnClientTimeOut(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
     bEnable = false;
 
-    nErr = domeCommand("!DGte;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutCloseOnClientTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGte;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
     
     return nErr;
@@ -2342,62 +2879,78 @@ int CDomePro::getDomeShutCloseOnClientTimeOut(bool &bEnable)
 
 int CDomePro::setDomeShutCloseClientTimeOut(int nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutCloseClientTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(nTimeout < 10 && nTimeout > 500)
         return COMMAND_FAILED;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DStc0x%08X;", nTimeout);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    ssTmp << "!DStc0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << nTimeout <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
 int CDomePro::getDomeShutCloseClientTimeOut(int &nTimeout)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGtc;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutCloseClientTimeOut] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGtc;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nTimeout = (int)strtoul(szResp, NULL, 16);
+    nTimeout = std::stoi(sResp, NULL, 16);
     
     return nErr;
 }
 
 int CDomePro::setShutterAutoCloseEnabled(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setShutterAutoCloseEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSanYes;");
+        nErr = domeCommand("!DSanYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSanNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSanNo;", sResp);
 
     return nErr;
-
 }
 
 int CDomePro::getShutterAutoCloseEnabled(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getShutterAutoCloseEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnable = false;
 
-    nErr = domeCommand("!DGan;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGan;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2407,16 +2960,19 @@ int CDomePro::getShutterAutoCloseEnabled(bool &bEnable)
 #pragma mark not yet implemented in the firmware
 int CDomePro::setDomeShutOpAtHome(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutOpAtHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshYes;");
+        nErr = domeCommand("!DSshYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSshNo;", sResp);
 
     return nErr;
 }
@@ -2424,15 +2980,20 @@ int CDomePro::setDomeShutOpAtHome(bool bEnable)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getDomeShutOpAtHome(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutOpAtHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnable = false;
 
-    nErr = domeCommand("!DGsh;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGsh;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2440,15 +3001,20 @@ int CDomePro::getDomeShutOpAtHome(bool &bEnable)
 
 int CDomePro::getDomeShutdownInputState(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutdownInputState] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnable = false;
 
-    nErr = domeCommand("!DGsi;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGsi;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2456,15 +3022,20 @@ int CDomePro::getDomeShutdownInputState(bool &bEnable)
 
 int CDomePro::getDomePowerGoodInputState(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomePowerGoodInputState] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnable = false;
 
-    nErr = domeCommand("!DGpi;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGpi;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2473,10 +3044,15 @@ int CDomePro::getDomePowerGoodInputState(bool &bEnable)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getLastDomeShutdownEvent(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGlv;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getLastDomeShutdownEvent] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGlv;", sResp);
     if(nErr)
         return nErr;
 
@@ -2487,31 +3063,39 @@ int CDomePro::getLastDomeShutdownEvent(void)
 
 int CDomePro::setDomeSingleShutterMode(bool bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeSingleShutterMode] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnable)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSssYes;");
+        nErr = domeCommand("!DSssYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSssNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSssNo;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeSingleShutterMode(bool &bEnable)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeSingleShutterMode] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnable = false;
 
-    nErr = domeCommand("!DGss;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGss;", sResp);
     if(nErr)
         return nErr;
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnable = true;
 
     return nErr;
@@ -2519,25 +3103,35 @@ int CDomePro::getDomeSingleShutterMode(bool &bEnable)
 
 int CDomePro::getDomeLinkErrCnt(int &nErrCnt)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGle;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeLinkErrCnt] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGle;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nErrCnt = (int)strtoul(szResp, NULL, 16);
+    nErrCnt = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::clearDomeLinkErrCnt(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DCle;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [clearDomeLinkErrCnt] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DCle;", sResp);
     if(nErr)
         return nErr;
 
@@ -2547,10 +3141,16 @@ int CDomePro::clearDomeLinkErrCnt(void)
 #pragma mark not yet implemented in the firmware
 int CDomePro::getDomeComErr(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGce;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeComErr] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+
+    nErr = domeCommand("!DGce;", sResp);
     if(nErr)
         return nErr;
 
@@ -2562,10 +3162,15 @@ int CDomePro::getDomeComErr(void)
 #pragma mark not yet implemented in the firmware
 int CDomePro::clearDomeComErr(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DCce;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [clearDomeComErr] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DCce;", sResp);
     if(nErr)
         return nErr;
 
@@ -2574,10 +3179,15 @@ int CDomePro::clearDomeComErr(void)
 
 int CDomePro::openDomeShutter1(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSo1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [openDomeShutter1] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSo1;", sResp);
     if(nErr)
         return nErr;
 
@@ -2586,10 +3196,15 @@ int CDomePro::openDomeShutter1(void)
 
 int CDomePro::openDomeShutter2(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSo2;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [openDomeShutter2] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSo2;", sResp);
     if(nErr)
         return nErr;
 
@@ -2598,10 +3213,15 @@ int CDomePro::openDomeShutter2(void)
 
 int CDomePro::closeDomeShutter1(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSc1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [closeDomeShutter1] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSc1;", sResp);
     if(nErr)
         return nErr;
 
@@ -2610,10 +3230,15 @@ int CDomePro::closeDomeShutter1(void)
 
 int CDomePro::closeDomeShutter2(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSc2;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [closeDomeShutter2] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSc2;", sResp);
     if(nErr)
         return nErr;
 
@@ -2622,10 +3247,15 @@ int CDomePro::closeDomeShutter2(void)
 
 int CDomePro::stopDomeShutter1(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSs1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [stopDomeShutter1] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DSs1;", sResp);
     if(nErr)
         return nErr;
 
@@ -2634,10 +3264,10 @@ int CDomePro::stopDomeShutter1(void)
 
 int CDomePro::stopDomeShutter2(void)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DSs2;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DSs2;", sResp);
     if(nErr)
         return nErr;
 
@@ -2647,70 +3277,93 @@ int CDomePro::stopDomeShutter2(void)
 
 int CDomePro::getDomeShutter1_ADC(int &nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGa1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutter1_ADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGa1;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nPos = (int)strtoul(szResp, NULL, 16);
+    nPos = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::getDomeShutter2_ADC(int &nPos)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGa2;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutter2_ADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGa2;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nPos = (int)strtoul(szResp, NULL, 16);
+    nPos = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeShutterOpenFirst(int nShutter)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSof0x%02X;", nShutter);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutterOpenFirst] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+    ssTmp << "!DSof0x" << std::uppercase << std::setfill('0') << std::setw(2) << std::hex  << nShutter <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
     return nErr;
 
 }
 
 int CDomePro::getDomeShutterOpenFirst(int &nShutter)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGof;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutterOpenFirst] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGof;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    nShutter = (int)strtoul(szResp, NULL, 16);
+    nShutter = std::stoi(sResp, NULL, 16);
 
     return nErr;
 }
 
 int CDomePro::setDomeShutterCloseFirst(int nShutter)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DScf0x%02X;", nShutter);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutterCloseFirst] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    ssTmp << "!DScf0x" << std::uppercase << std::setfill('0') << std::setw(2) << std::hex  << nShutter <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 
@@ -2718,31 +3371,41 @@ int CDomePro::setDomeShutterCloseFirst(int nShutter)
 
 int CDomePro::getDomeShutterCloseFirst(int &nShutter)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DGcf;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGcf;", sResp);
     if(nErr)
         return nErr;
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutterCloseFirst] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
     // convert result hex string to long
-    nShutter = (int)strtoul(szResp, NULL, 16);
+    nShutter = std::stoi(sResp, NULL, 16);
     
     return nErr;
 }
 
 int CDomePro::getDomeShutterMotorADC(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGsc;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutterMotorADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGsc;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp / 1023.0 * 3.3;
     dVolts = (dVolts - 1.721) / 0.068847;
@@ -2754,16 +3417,21 @@ int CDomePro::getDomeShutterMotorADC(double &dVolts)
 
 int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGac;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzimuthMotorADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGac;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dVolts = (double)ulTmp / 1023.0 * 3.3;
     dVolts = (dVolts - 1.721) / 0.068847;
@@ -2775,16 +3443,21 @@ int CDomePro::getDomeAzimuthMotorADC(double &dVolts)
 
 int CDomePro::getDomeShutterTempADC(double &dTemp)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGst;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutterTempADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGst;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
     dTemp = dTemp / 0.01;
@@ -2794,16 +3467,21 @@ int CDomePro::getDomeShutterTempADC(double &dTemp)
 
 int CDomePro::getDomeAzimuthTempADC(double &dTemp)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
     unsigned int ulTmp;
 
-    nErr = domeCommand("!DGat;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeAzimuthTempADC] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGat;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dTemp = (double)ulTmp / 1023.0 * 3.3 - 0.5;
     dTemp = dTemp / 0.01;
@@ -2813,32 +3491,39 @@ int CDomePro::getDomeAzimuthTempADC(double &dTemp)
 
 int CDomePro::setDomeShutOpOnHome(bool bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutOpOnHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnabled)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshYes;");
+        nErr = domeCommand("!DSshYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSshNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSshNo;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeShutOpOnHome(bool &bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutOpOnHome] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnabled = false;
 
-    nErr = domeCommand("!DGsh;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGsh;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnabled = true;
 
     return nErr;
@@ -2847,32 +3532,40 @@ int CDomePro::getDomeShutOpOnHome(bool &bEnabled)
 
 int CDomePro::setHomeWithShutterClose(bool bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setHomeWithShutterClose] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnabled)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSchYes;");
+        nErr = domeCommand("!DSchYes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSchNo;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSchNo;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getHomeWithShutterClose(bool &bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getHomeWithShutterClose] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnabled = false;
 
-    nErr = domeCommand("!DGch;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGch;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnabled = true;
 
     return nErr;
@@ -2880,64 +3573,80 @@ int CDomePro::getHomeWithShutterClose(bool &bEnabled)
 
 int CDomePro::setShutter1_LimitFaultCheckEnabled(bool bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setShutter1_LimitFaultCheckEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnabled)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl1Yes;");
+        nErr = domeCommand("!DSl1Yes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl1No;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSl1No;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getShutter1_LimitFaultCheckEnabled(bool &bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getShutter1_LimitFaultCheckEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnabled = false;
 
-    nErr = domeCommand("!DGl1;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGl1;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnabled = true;
 
     return nErr;
 }
 
 int CDomePro::setShutter2_LimitFaultCheckEnabled(bool bEnabled)
-{    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+{    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setShutter2_LimitFaultCheckEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     if(bEnabled)
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl2Yes;");
+        nErr = domeCommand("!DSl2Yes;", sResp);
     else
-        snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSl2No;");
-
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+        nErr = domeCommand("!DSl2No;", sResp);
 
     return nErr;
 }
 
 int CDomePro::getShutter2_LimitFaultCheckEnabled(bool &bEnabled)
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getShutter2_LimitFaultCheckEnabled] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     bEnabled = false;
 
-    nErr = domeCommand("!DGl2;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = domeCommand("!DGl2;", sResp);
     if(nErr)
         return nErr;
 
-    if(strstr(szResp,"Yes"))
+    if(sResp.find("Yes")!= std::string::npos)
         bEnabled = true;
 
     return nErr;
@@ -2945,31 +3654,41 @@ int CDomePro::getShutter2_LimitFaultCheckEnabled(bool &bEnabled)
 
 int CDomePro::setDomeShutter1_OCP_Limit(double dLimit)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutter1_OCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     ulTmp = (int)floor((dLimit/0.0468f)+0.5);
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSx10x%08X;", ulTmp);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DSx10x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << ulTmp <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeShutter1_OCP_Limit(double &dLimit)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = domeCommand("!DGx1;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutter1_OCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGx1;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dLimit = (double)ulTmp * 0.0468f;
 
@@ -2979,31 +3698,41 @@ int CDomePro::getDomeShutter1_OCP_Limit(double &dLimit)
 
 int CDomePro::setDomeShutter2_OCP_Limit(double dLimit)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setDomeShutter2_OCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
 
     ulTmp = (int)floor((dLimit/0.0468f)+0.5);
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!DSx20x%08X;", ulTmp);
-    nErr = domeCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << "!DSx20x"<< std::uppercase << std::setfill('0') << std::setw(8) << std::hex  << ulTmp <<";";
+    nErr = domeCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
 
 int CDomePro::getDomeShutter2_OCP_Limit(double &dLimit)
 {
-    int nErr = DP2_OK;
+    int nErr = PLUGIN_OK;
     int ulTmp;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = domeCommand("!DGx2;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDomeShutter2_OCP_Limit] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGx2;", sResp);
     if(nErr)
         return nErr;
 
     // convert result hex string to long
-    ulTmp = (int)strtoul(szResp, NULL, 16);
+    ulTmp = std::stoi(sResp, NULL, 16);
 
     dLimit = (double)ulTmp * 0.0468f;
 
@@ -3011,58 +3740,31 @@ int CDomePro::getDomeShutter2_OCP_Limit(double &dLimit)
 
 }
 
-
-
 int CDomePro::clearDomeLimitFault()
 {
-    int nErr = DP2_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
+    std::string sResp;
 
-    nErr = domeCommand("!DClf;", szResp, SERIAL_BUFFER_SIZE);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [clearDomeLimitFault] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+
+    nErr = domeCommand("!DClf;", sResp);
     return nErr;
 }
 
-bool CDomePro::checkBoundaries(double dTargetAz, double dDomeAz, double nMargin)
+
+#ifdef PLUGIN_DEBUG
+const std::string CDomePro::getTimeStamp()
 {
-    double highMark;
-    double lowMark;
-    double roundedTargetAz;
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
 
-    // we need to test "large" depending on the heading error and movement coasting
-    highMark = ceil(dDomeAz)+nMargin;
-    lowMark = ceil(dDomeAz)-nMargin;
-    roundedTargetAz = ceil(dTargetAz);
-
-    if(lowMark < 0 && highMark > 0) { // we're close to 0 degre but above 0
-        if((roundedTargetAz+2) >= 360)
-            roundedTargetAz = (roundedTargetAz+2)-360;
-        if ( (roundedTargetAz > lowMark) && (roundedTargetAz <= highMark)) {
-            return true;
-        }
-    }
-    if ( lowMark > 0 && highMark>360 ) { // we're close to 0 but from the other side
-        if( (roundedTargetAz+360) > lowMark && (roundedTargetAz+360) <= highMark) {
-            return true;
-        }
-    }
-    if (roundedTargetAz > lowMark && roundedTargetAz <= highMark) {
-        return true;
-    }
-
-    return false;
+    return buf;
 }
-
-
-
-void  CDomePro::hexdump(const char* inputData, char *outBuffer, int size)
-{
-    char *buf = outBuffer;
-    int idx=0;
-    for(idx=0; idx<size; idx++){
-        snprintf((char *)buf,4,"%02X ", inputData[idx]);
-        buf+=3;
-    }
-    *buf = 0;
-}
-
-
+#endif

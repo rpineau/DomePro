@@ -137,11 +137,10 @@ int X2Dome::execModalSettingsDialog()
     X2GUIInterface*					ui = uiutil.X2UI();
     X2GUIExchangeInterface*			dx = NULL;//Comes after ui is loaded
     bool bPressedOK = false;
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
     int nTmp = 0;
     double dTmp = 0;
     bool bTmp = false;
-    bool bIsAtHome = false;
+    std::stringstream sTmpBuf;
 
     if (NULL == ui)
         return ERR_POINTER;
@@ -152,8 +151,6 @@ int X2Dome::execModalSettingsDialog()
     if (NULL == (dx = uiutil.X2DX()))
         return ERR_POINTER;
 
-
-    memset(szTmpBuf,0,SERIAL_BUFFER_SIZE);
 
     X2MutexLocker ml(GetMutex());
 
@@ -188,11 +185,12 @@ int X2Dome::execModalSettingsDialog()
 
         dx->setEnabled(SET_AZIMUTH_CPR, true);
 
-        m_DomePro.isDomeAtHome(bIsAtHome);
-        dx->setPropertyString(IS_AT_HOME, "text", bIsAtHome?"Yes":"No");
+        m_DomePro.getDomePowerGoodInputState(bTmp);
+        sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Power Good input : OK</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Power Good input : NOT OK</span></p></body></html>");
+        dx->setPropertyString(POWER_GOOD,"text", sTmpBuf.str().c_str());
 
         // Homing
-        dx->setEnabled(HOMING_DIR, true); // no corresponding function, need to ping Chris
+        dx->setEnabled(HOMING_DIR, true);
         nErr = m_DomePro.getDomeHomeDirection(nTmp);
         dx->setCurrentIndex(HOMING_DIR, nTmp-1);
 
@@ -226,12 +224,12 @@ int X2Dome::execModalSettingsDialog()
         dx->setEnabled(ENCODDER_POLARITY, false);
         dx->setEnabled(SET_AZIMUTH_CPR, false);
 
-        dx->setPropertyString(IS_AT_HOME, "text","--");
-
         // Homing
         dx->setEnabled(HOMING_DIR, false);
         dx->setEnabled(HOME_POS, false);
         dx->setEnabled(PARK_POS, false);
+
+        dx->setPropertyString(POWER_GOOD,"text", "Power Good input : NA");
 
         dx->setEnabled(SHUTTER_BUTTON, false);
         dx->setEnabled(TIMEOUTS_BUTTON, false);
@@ -316,6 +314,8 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     int nErr = SB_OK;
     char szErrorMessage[LOG_BUFFER_SIZE];
     char szTmpBuf[SERIAL_BUFFER_SIZE];
+    std::stringstream sTmpBuf;
+    bool bTmp;
 
     int nTmp, nTmp2;
     bool bPressedOK = false;
@@ -329,6 +329,10 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
     if (!strcmp(pszEvent, "on_timer"))
     {
         if(m_bLinked) {
+            m_DomePro.getDomePowerGoodInputState(bTmp);
+            sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Power Good input: OK</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Power Good input: NOT OK</span></p></body></html>");
+            uiex->setPropertyString(POWER_GOOD,"text", sTmpBuf.str().c_str());
+
             switch(m_nLearningDomeCPR) {
                 case RIGHT:
                 case LEFT:
@@ -504,7 +508,7 @@ void X2Dome::setMainDialogControlState(X2GUIExchangeInterface* uiex, bool enable
 int X2Dome::doDomeProShutter(bool& bPressedOK)
 {
     int nErr = SB_OK;
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
+    std::string sTmp;
     bool bTmp;
     int nTmp;
     double dTmp;
@@ -527,8 +531,8 @@ int X2Dome::doDomeProShutter(bool& bPressedOK)
     m_nCurrentDialog = SHUTTER;
     // sequencing
     if(m_bLinked) {
-        m_DomePro.getModel(szTmpBuf, SERIAL_BUFFER_SIZE);
-        dx->setPropertyString(DOMEPRO_MODEL, "text", szTmpBuf);
+        m_DomePro.getModel(sTmp);
+        dx->setPropertyString(DOMEPRO_MODEL, "text", sTmp.c_str());
         // sequencing
         if(m_DomePro.hasShutterUnit()) {
             dx->setEnabled(SINGLE_SHUTTER, true);
@@ -984,9 +988,9 @@ void X2Dome::deviceInfoDetailedDescription(BasicStringInterface& str) const
 {
     X2MutexLocker ml(GetMutex());
     if(m_bLinked) {
-        char cFirmware[SERIAL_BUFFER_SIZE];
-        m_DomePro.getFirmwareVersion(cFirmware, SERIAL_BUFFER_SIZE);
-        str = cFirmware;
+        std::string sFirmware;
+        m_DomePro.getFirmwareVersion(sFirmware);
+        str = sFirmware.c_str();
 
     }
     else
@@ -997,9 +1001,9 @@ void X2Dome::deviceInfoModel(BasicStringInterface& str)
 {
     X2MutexLocker ml(GetMutex());
     if(m_bLinked) {
-        char cModel[SERIAL_BUFFER_SIZE];
-        m_DomePro.getModel(cModel, SERIAL_BUFFER_SIZE);
-        str = cModel;
+        std::string sModel;
+        m_DomePro.getModel(sModel);
+        str = sModel.c_str();
     }
     else
         str = "N/A";
@@ -1017,7 +1021,7 @@ void X2Dome::deviceInfoModel(BasicStringInterface& str)
 
 double	X2Dome::driverInfoVersion(void) const
 {
-	return DRIVER_VERSION;
+	return PLUGIN_VERSION;
 }
 
 //

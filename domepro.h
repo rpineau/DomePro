@@ -24,18 +24,27 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <chrono>
+#include <thread>
+#include <ctime>
+
 
 #include "../../licensedinterfaces/sberrorx.h"
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"
 
-// #define ATCL_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+#define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
-#define DRIVER_VERSION      1.3
+#define PLUGIN_VERSION      1.31
 
 #define SERIAL_BUFFER_SIZE 256
-#define MAX_TIMEOUT 5000
-#define DP2_LOG_BUFFER_SIZE 256
+#define PLUGIN_LOG_BUFFER_SIZE 256
+
+#define MAX_TIMEOUT 500
+#define MAX_READ_WAIT_TIMEOUT 25
+#define NB_RX_WAIT 10
 
 /// ATCL response code
 #define ATCL_ACK	0x8F
@@ -65,7 +74,7 @@ enum DomePro2_Motor {ON_OFF = 0, STEP_DIR, MOTOR_UNKNOWN};
 enum DomePro2_Polarity {POSITIVE = 0, NEGATIVE, POLARITY_UKNOWN};
 enum DomeAzMoveMode {FIXED = 0, LEFT, RIGHT, GOTO, HOMING, AZ_TO, GAUGING, PARKING, NONE, CLEARING_RIGHT, CLEARING_LEFT};
 
-enum DomeProErrors {DP2_OK=0, NOT_CONNECTED, DP2_CANT_CONNECT, DP2_BAD_CMD_RESPONSE, COMMAND_FAILED, INVALID_COMMAND};
+enum DomeProErrors {PLUGIN_OK=0, NOT_CONNECTED, CANT_CONNECT, BAD_CMD_RESPONSE, COMMAND_FAILED, COMMAND_TIMEOUT, INVALID_COMMAND};
 
 enum DomeProShutterState {OPEN=0, CLOSED, OPENING, CLOSING, SHUTTER_ERROR, NO_COM,
                         SHUT1_OPEN_TO, SHUT1_CLOSE_TO, SHUT2_OPEN_TO, SHUT2_CLOSE_TO,
@@ -105,8 +114,8 @@ public:
     int learnAzimuthCprLeft();
 
     // Dome informations
-    int getFirmwareVersion(char *version, int strMaxLen);
-    int getModel(char *model, int strMaxLen);
+    int getFirmwareVersion(std::string &sFirmware);
+    int getModel(std::string &sModel);
     int getModelType();
     int getModuleType(int &nModuleType);
     int getDomeAzMotorType(int &nMotorType);
@@ -173,6 +182,8 @@ public:
     int             getLeftCPR();
     int             getRightCPR();
 
+    bool            checkBoundaries(double dTargetAz, double dDomeAz, double nMargin=2.0);
+    
     // controller low level data
     int             getDomeSupplyVoltageAzimuthL(double &dVolts);
     int             getDomeSupplyVoltageShutterL(double &dVolts);
@@ -268,9 +279,13 @@ protected:
     int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(unsigned char *pszRespBuffer, int bufferLen);
 
+    int             domeCommand(const std::string sCmd, std::string &sResp, int nTimeout = MAX_TIMEOUT, char cEndOfResponse = ';');
+    int             readResponse(std::string &sResp, int nTimeout = MAX_TIMEOUT, char cEndOfResponse = ';');
+
+
     // conversion functions
     void            AzToTicks(double pdAz, int &ticks);
-    void            TicksToAz(int ticks, double &pdAz);
+    void            TicksToAz(unsigned long ticks, double &pdAz);
 
     int             killDomeAzimuthMovement(void);
 
@@ -306,7 +321,7 @@ protected:
 
     int             killDomeShutterMovement(void);
 
-    int             getDomeDebug(char *pszDebugStrBuff, int nStrMaxLen);
+    int             getDomeDebug(std::string &sDebugStrBuff);
 
     int             openDomeShutter1(void);
     int             openDomeShutter2(void);
@@ -317,10 +332,6 @@ protected:
     int             getDomeShutter1_ADC(int &nPos);
     int             getDomeShutter2_ADC(int &nPos);
 
-    bool            checkBoundaries(double dTargetAz, double dDomeAz, double nMargin=2.0);
-
-    void            hexdump(const char *inputData, char *outBuffer, int size);
-    
     SerXInterface*  m_pSerx;
     LoggerInterface*    m_pLogger;
     bool            m_bDebugLog;
@@ -347,12 +358,12 @@ protected:
     int             m_nTargetAdc;
     int             m_nGotoTries;
 
-    char            m_szFirmwareVersion[SERIAL_BUFFER_SIZE];
+    std::string     m_sFirmware;
     int             m_nShutterState;
     bool            m_bHasShutter;
     bool            m_bShutterOpened;
 
-    char            m_szLogBuffer[DP2_LOG_BUFFER_SIZE];
+    std::string     m_sLogBuffer;
     int             m_nModel;
     int             m_nModuleType;
     int             m_nMotorType;
@@ -383,12 +394,11 @@ protected:
 
     bool            m_bShutterGotoEnabled;
 
-#ifdef ATCL_DEBUG
-    std::string     m_sLogfilePath;
+#ifdef PLUGIN_DEBUG
     // timestamp for logs
-    char*           timestamp;
-    time_t          ltime;
-    FILE*           Logfile;	  // LogFile
+    const std::string getTimeStamp();
+    std::ofstream m_sLogFile;
+    std::string m_sLogfilePath;
 #endif
 
 };
