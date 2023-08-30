@@ -3749,6 +3749,53 @@ int CDomePro::clearDomeLimitFault()
     return nErr;
 }
 
+int CDomePro::isAzimuthInRemoteMode(bool bRemote)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAzimuthControllerMode] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGam;", sResp);
+    if(nErr)
+        return nErr;
+
+    bRemote = true;
+
+    if(sResp.find("Local")!= std::string::npos) {
+        bRemote = false;
+    }
+
+    return nErr;
+}
+
+int CDomePro::isShutterInRemoteMode(bool bRemote)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAzimuthControllerMode] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = domeCommand("!DGsx;", sResp);
+    if(nErr)
+        return nErr;
+
+    bRemote = true;
+
+    if(sResp.find("0x1D")!= std::string::npos) {
+        bRemote = false;
+    }
+
+    return nErr;
+}
+
+
 
 #ifdef PLUGIN_DEBUG
 const std::string CDomePro::getTimeStamp()

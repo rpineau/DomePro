@@ -17,6 +17,8 @@
 #define ENCODDER_POLARITY       "checkBox_2"
 #define SET_AZIMUTH_CPR         "pushButton_6"
 #define POWER_GOOD              "powerGood"
+#define AZ_CTRL_MODE            "azimuthMode"
+#define SHUT_CTRL_MODE          "shutterMode"
 
 // Homing
 #define HOMING_DIR		"comboBox_3"

@@ -186,8 +186,18 @@ int X2Dome::execModalSettingsDialog()
         dx->setEnabled(SET_AZIMUTH_CPR, true);
 
         m_DomePro.getDomePowerGoodInputState(bTmp);
-        sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Power Good input : OK</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Power Good input : NOT OK</span></p></body></html>");
-        dx->setPropertyString(POWER_GOOD,"text", sTmpBuf.str().c_str());
+        sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Power Good input: OK</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Power Good input: NOT OK</span></p></body></html>");
+        dx->setText(POWER_GOOD, sTmpBuf.str().c_str());
+        std::stringstream().swap(sTmpBuf);
+
+        m_DomePro.isAzimuthInRemoteMode(bTmp);
+        sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Azimuth controller mode : Remote</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Azimuth controller mode : Local</span></p></body></html>");
+        dx->setText(AZ_CTRL_MODE, sTmpBuf.str().c_str());
+
+        std::stringstream().swap(sTmpBuf);
+        m_DomePro.isShutterInRemoteMode(bTmp);
+        sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Shutter controller mode : Remote</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Shutter controller mode : Local</span></p></body></html>");
+        dx->setText(SHUT_CTRL_MODE, sTmpBuf.str().c_str());
 
         // Homing
         dx->setEnabled(HOMING_DIR, true);
@@ -229,7 +239,9 @@ int X2Dome::execModalSettingsDialog()
         dx->setEnabled(HOME_POS, false);
         dx->setEnabled(PARK_POS, false);
 
-        dx->setPropertyString(POWER_GOOD,"text", "Power Good input : NA");
+        dx->setText(POWER_GOOD, "");
+        dx->setText(AZ_CTRL_MODE, "");
+        dx->setText(SHUT_CTRL_MODE, "");
 
         dx->setEnabled(SHUTTER_BUTTON, false);
         dx->setEnabled(TIMEOUTS_BUTTON, false);
@@ -329,7 +341,17 @@ int X2Dome::doMainDialogEvents(X2GUIExchangeInterface* uiex, const char* pszEven
         if(m_bLinked) {
             m_DomePro.getDomePowerGoodInputState(bTmp);
             sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Power Good input: OK</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Power Good input: NOT OK</span></p></body></html>");
-            uiex->setPropertyString(POWER_GOOD,"text", sTmpBuf.str().c_str());
+            uiex->setText(POWER_GOOD, sTmpBuf.str().c_str());
+            std::stringstream().swap(sTmpBuf);
+
+            m_DomePro.isAzimuthInRemoteMode(bTmp);
+            sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Azimuth controller mode : Remote</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Azimuth controller mode : Local</span></p></body></html>");
+            uiex->setText(AZ_CTRL_MODE, sTmpBuf.str().c_str());
+
+            std::stringstream().swap(sTmpBuf);
+            m_DomePro.isShutterInRemoteMode(bTmp);
+            sTmpBuf << (bTmp ? "<html><head/><body><p><span style=\" color:#00FF00;\">Shutter controller mode : Remote</span></p></body></html>" : "<html><head/><body><p><span style=\" color:#FF0000;\">Shutter controller mode : Local</span></p></body></html>");
+            uiex->setText(SHUT_CTRL_MODE, sTmpBuf.str().c_str());
 
             switch(m_nLearningDomeCPR) {
                 case RIGHT:

@@ -274,6 +274,9 @@ public:
 
     int             clearDomeLimitFault();
 
+    int             isAzimuthInRemoteMode(bool bRemote);
+    int             isShutterInRemoteMode(bool bRemote);
+
 protected:
 
     int             domeCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
